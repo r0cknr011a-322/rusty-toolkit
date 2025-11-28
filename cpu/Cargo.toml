@@ -1,0 +1,7 @@
+[package]
+name = "rusty-scrapyard-cpu"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]

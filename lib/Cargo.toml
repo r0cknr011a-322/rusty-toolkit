@@ -1,0 +1,8 @@
+[package]
+name = "rusty-scrapyard-lib"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+rusty-scrapyard-iomem = { path = "../iomem" }

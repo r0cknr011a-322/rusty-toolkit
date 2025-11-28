@@ -1,6 +1,8 @@
-[package]
-name = "hello"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+members = [ "lib", "cpu", "iomem" ]
+resolver = "3"
 
-[dependencies]
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+authors = [ "r0cknr011a" ]
