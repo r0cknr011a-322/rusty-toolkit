@@ -11,8 +11,8 @@ pub trait RW8 {
 }
 
 pub trait RWVolatile8 {
-    fn rd8_volatile(&self, off: usize) -> u8;
-    fn wr8_volatile(&self, off: usize, value: u8);
+    fn rd8_volatile(&mut self, off: usize) -> u8;
+    fn wr8_volatile(&mut self, off: usize, value: u8);
 }
 
 pub trait RWAtomic8 {
@@ -94,14 +94,30 @@ impl RW8 for IOBufMem<'_> {
 }
 
 impl RWVolatile8 for IOBufMem<'_> {
-    fn rd8_volatile(&self, off: usize) -> u8 {
+    fn rd8_volatile(&mut self, off: usize) -> u8 {
         unsafe {
             let addr = self.off::<u8>(off);
             addr.read_volatile()
         }
     }
 
-    fn wr8_volatile(&self, off: usize, value: u8) {
+    fn wr8_volatile(&mut self, off: usize, value: u8) {
+        unsafe {
+            let addr = self.off_mut::<u8>(off);
+            addr.write_volatile(value);
+        }
+    }
+}
+
+impl RWVolatile8 for &mut IOBufMem<'_> {
+    fn rd8_volatile(&mut self, off: usize) -> u8 {
+        unsafe {
+            let addr = self.off::<u8>(off);
+            addr.read_volatile()
+        }
+    }
+
+    fn wr8_volatile(&mut self, off: usize, value: u8) {
         unsafe {
             let addr = self.off_mut::<u8>(off);
             addr.write_volatile(value);

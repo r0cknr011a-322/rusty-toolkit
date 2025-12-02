@@ -1,17 +1,20 @@
-use core::future::{ Future };
-
 pub enum Error {
     Fatal,
     TimedOut,
     Unsupported,
 }
 
-pub trait Send {
-    fn send(self, buf: &[u8]) -> impl Future<Output = Result<usize, Error>>;
+pub enum Poll<T> {
+    Ready(T),
+    Pending,
 }
 
-pub trait Recv {
-    fn recv(self, buf: &mut [u8]) -> impl Future<Output = Result<usize, Error>>;
+pub trait AsyncWrite {
+    fn poll_write(&mut self, buf: &[u8]) -> Poll<Result<usize, Error>>;
+}
+
+pub trait AsyncRead {
+    fn poll_read(&mut self, buf: &mut [u8]) -> Poll<Result<usize, Error>>;
 }
 
 pub enum SeekFrom {
@@ -20,6 +23,6 @@ pub enum SeekFrom {
     Current(i64),
 }
 
-pub trait Seek {
-    fn seek(self, pos: SeekFrom) -> impl Future<Output = Result<u64, Error>>;
+pub trait AsyncSeek {
+    fn poll_seek(&mut self, pos: SeekFrom) -> Poll<Result<u64, Error>>;
 }

@@ -1,14 +1,14 @@
 #![no_std]
 #![no_main]
 
-use core::pin::{ pin };
-use core::task::{ Context, Waker };
 use core::panic::{ PanicInfo };
 use core::fmt::{ self, Write };
-use rusty_scrapyard_lib::io::{ Send };
+use core::arch::global_asm;
+use rusty_scrapyard_lib::io::{ AsyncWrite, AsyncRead, Poll as IOPoll, Error as IOError };
 use rusty_scrapyard_iomem::{ IOBufMem };
-use rusty_scrapyard_lib::ns16550::{ NS16550 };
-use rusty_scrapyard_cpu::riscv::{ RiscV };
+use rusty_scrapyard_lib::uart16550::{ UART16550 };
+
+global_asm!(include_str!("trap.S"));
 
 #[derive(Copy, Clone, Default)]
 struct LogChan { }
@@ -23,31 +23,21 @@ enum Error {
     Fatal,
 }
 
-async fn mainloop() -> Result<(), Error> {
+#[unsafe(no_mangle)]
+pub extern "C" fn main() {
     let iomem = IOBufMem::new(0x1000_0000, 0x08);
-    let uart = NS16550::new(iomem);
+    let mut uart = UART16550::new(iomem);
+    let mut data: [u8; 16] = [0; 16];
+    while let IOPoll::Pending = uart.poll_read(&mut data[..]) { }
+
+    let msg = "got some bytes";
+    while let IOPoll::Pending = uart.poll_write(msg.as_bytes()) { }
 
     let msg = "
-        hello world!
-        hello world!
-        hello world!
-        hello world!
-        hello world!
-        hello world!
-        hello world!
-        hello world!
+        hello world! hello world! hello world! hello world!
+        hello world! hello world! hello world! hello world!
     ";
-    uart.send(msg.as_bytes()).await;
-
-    Ok(())
-}
-
-#[unsafe(export_name = "secret_start")]
-fn main() {
-    RiscV::set_sp(0x8002_0000);
-    let mut ctx = Context::from_waker(Waker::noop());
-    let mainloop = pin!(mainloop());
-    let _ = mainloop.poll(&mut ctx);
+    while let IOPoll::Pending = uart.poll_write(msg.as_bytes()) { }
 }
 
 #[panic_handler]
