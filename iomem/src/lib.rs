@@ -69,11 +69,11 @@ impl IOBufMem<'_> {
     }
 
     fn off<T>(&self, off: usize) -> *const T {
-        (&self.buf[off..off+mem::size_of::<T>()]).as_ptr().cast::<T>()
+        (&self.buf[off..off + mem::size_of::<T>()]).as_ptr().cast::<T>()
     }
 
-    fn off_mut<T>(&mut self, off: usize) -> *mut T {
-        (&mut self.buf[off..off+mem::size_of::<T>()]).as_mut_ptr().cast::<T>()
+    fn off_mut<T>(&self, off: usize) -> *mut T {
+        (&self.buf[off..]).as_ptr().cast::<T>().cast_mut()
     }
 }
 
@@ -94,6 +94,22 @@ impl RW8 for IOBufMem<'_> {
 }
 
 impl RWVolatile8 for IOBufMem<'_> {
+    fn rd8_volatile(&mut self, off: usize) -> u8 {
+        unsafe {
+            let addr = self.off::<u8>(off);
+            addr.read_volatile()
+        }
+    }
+
+    fn wr8_volatile(&mut self, off: usize, value: u8) {
+        unsafe {
+            let addr = self.off_mut::<u8>(off);
+            addr.write_volatile(value);
+        }
+    }
+}
+
+impl RWVolatile8 for &mut IOBufMem<'_> {
     fn rd8_volatile(&mut self, off: usize) -> u8 {
         unsafe {
             let addr = self.off::<u8>(off);

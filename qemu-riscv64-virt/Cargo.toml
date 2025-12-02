@@ -1,8 +1,10 @@
 [package]
-name = "rusty-scrapyard-lib"
+name = "rusty-scrapyard-rv64-virt"
 version = "0.0.1"
 edition = "2024"
 authors = [ "r0cknr011a" ]
 
 [dependencies]
+rusty-scrapyard-lib = { path = "../lib" }
 rusty-scrapyard-iomem = { path = "../iomem" }
+rusty-scrapyard-cpu = { path = "../cpu" }
