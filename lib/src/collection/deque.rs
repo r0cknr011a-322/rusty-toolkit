@@ -1,25 +1,15 @@
 #[derive(Clone, Copy)]
-struct Cursor<const SIZE: usize> {
+struct Cursor {
     pos: usize,
-    empty: bool,
-    straight: bool,
+    max: usize,
+    inc: bool,
 }
 
-impl<const SIZE: usize> Cursor<SIZE> {
-    fn new(pos: usize, straight: bool) -> Self {
+impl Cursor {
+    fn new(pos: usize, len: usize, inc: bool) -> Self {
         Self {
-            pos: pos,
-            straight: straight,
-            empty: true,
+            pos: pos, max: len - 1, inc: inc,
         }
-    }
-
-    fn empty(&self) -> bool {
-        self.empty
-    }
-
-    fn set_empty(&mut self, value: bool) {
-        self.empty = value;
     }
 
     fn pos(&self) -> usize {
@@ -27,25 +17,25 @@ impl<const SIZE: usize> Cursor<SIZE> {
     }
 
     fn next(&mut self) {
-        self.pos = match self.straight {
-            true => match self.pos == SIZE - 1 {
+        self.pos = match self.inc {
+            true => match self.pos == self.max {
                 true => 0,
                 false => self.pos + 1,
             },
             false => match self.pos == 0 {
-                true => SIZE - 1,
+                true => self.max,
                 false => self.pos - 1,
             },
         };
     }
 
     fn prev(&mut self) {
-        self.pos = match self.straight {
+        self.pos = match self.inc {
             true => match self.pos == 0 {
-                true => SIZE - 1,
+                true => self.max,
                 false => self.pos - 1,
             },
-            false => match self.pos == SIZE - 1 {
+            false => match self.pos == self.max {
                 true => 0,
                 false => self.pos + 1,
             },
@@ -54,33 +44,71 @@ impl<const SIZE: usize> Cursor<SIZE> {
 }
 
 #[derive(PartialEq, Debug)]
-pub enum UhvDequeError {
+pub enum DequeError {
     Fatal,
 }
 
 #[derive(Clone, Copy)]
-pub struct UhvDeque<E, const SIZE: usize>
-where E: Copy + Default {
-    buf: [E; SIZE],
-    front: Cursor<SIZE>,
-    back: Cursor<SIZE>,
+struct DequeCursor {
+    cursor: Cursor,
+    free: bool,
 }
 
-impl<E, const SIZE: usize> UhvDeque<E, SIZE>
-where E: Copy + Default {
-    pub fn new() -> Self {
+impl DequeCursor {
+    fn new(cursor: Cursor) -> Self {
         Self {
-            buf: [E::default(); SIZE],
-            front: Cursor::new(0, true), back: Cursor::new(SIZE - 1, false),
+            cursor: cursor, free: true,
         }
     }
 
+    fn pos(&self) -> usize {
+        self.cursor.pos()
+    }
+
+    fn is_free(&self) -> bool {
+        self.free
+    }
+
+    fn set_free(&mut self, free: bool) {
+        self.free = free;
+    }
+
+    fn next(&mut self) {
+        self.cursor.next();
+    }
+
+    fn prev(&mut self) {
+        self.cursor.prev();
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct Deque<I, const L: usize>
+where I: Copy + Default {
+    buf: [I; L],
+    front: DequeCursor,
+    back: DequeCursor,
+}
+
+impl<I, const LEN: usize> Default for Deque<I, LEN>
+where I: Copy + Default {
+    fn default() -> Self {
+        Self {
+            buf: [I::default(); LEN],
+            front: DequeCursor::new(Cursor::new(0, LEN, true)),
+            back: DequeCursor::new(Cursor::new(LEN - 1, LEN, false)),
+        }
+    }
+}
+
+impl<I, const LEN: usize> Deque<I, LEN>
+where I: Copy + Default {
     pub(crate) fn get_front(&self) -> (usize, bool) {
-        (self.front.pos(), self.front.empty())
+        (self.front.pos(), self.front.is_free())
     }
 
     pub(crate) fn get_back(&self) -> (usize, bool) {
-        (self.back.pos(), self.back.empty())
+        (self.back.pos(), self.back.is_free())
     }
 
     pub fn capacity(&self) -> usize {
@@ -88,91 +116,102 @@ where E: Copy + Default {
     }
 
     pub fn len(&self) -> usize {
+        if !self.front.is_free() && !self.back.is_free() {
+            return LEN;
+        }
         let mut sum = 0;
-        if !self.front.empty() && !self.back.empty() {
-            return SIZE;
-        }
-        if !self.front.empty() || !self.back.empty() {
+        if !self.front.is_free() {
             sum += 1;
-        }
+        };
+        if !self.back.is_free() {
+            sum += 1;
+        };
         sum += if self.front.pos() < self.back.pos() {
-            self.front.pos() + (SIZE - 1 - self.back.pos())
+            self.front.pos() + (LEN - 1 - self.back.pos())
         } else {
             self.front.pos() - self.back.pos() - 1
         };
         sum
     }
 
-    pub fn push_back(&mut self, entry: E) -> Result<(), UhvDequeError> {
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn is_full(&self) -> bool {
+        self.len() == self.capacity()
+    }
+
+    pub fn push_back(&mut self, item: I) -> Result<(), DequeError> {
         let len = self.len();
-        if len == SIZE {
-            return Err(UhvDequeError::Fatal);
+        if len == LEN {
+            return Err(DequeError::Fatal);
         }
-        if len == SIZE - 1 {
-            if self.back.empty() {
-                self.back.set_empty(false);
+        if len == LEN - 1 {
+            if self.back.is_free() {
+                self.back.set_free(false);
             } else {
                 self.front.prev();
-                self.front.set_empty(false);
+                self.front.set_free(false);
                 self.back.next();
             }
-            self.buf[self.back.pos()] = entry;
+            self.buf[self.back.pos()] = item;
             return Ok(());
         }
-        if len == SIZE - 2 {
-           self.buf[self.back.pos()] = entry;
-           self.back.set_empty(false);
+        if len == LEN - 2 {
+           self.buf[self.back.pos()] = item;
+           self.back.set_free(false);
            return Ok(());
         }
-        self.buf[self.back.pos()] = entry;
+        self.buf[self.back.pos()] = item;
         self.back.next();
         Ok(())
     }
 
-    pub fn push_front(&mut self, entry: E) -> Result<(), UhvDequeError> {
+    pub fn push_front(&mut self, item: I) -> Result<(), DequeError> {
         let len = self.len();
-        if len == SIZE {
-            return Err(UhvDequeError::Fatal);
+        if len == LEN {
+            return Err(DequeError::Fatal);
         }
-        if len == SIZE - 1 {
-            if self.front.empty() {
-                self.front.set_empty(false);
+        if len == LEN - 1 {
+            if self.front.is_free() {
+                self.front.set_free(false);
             } else {
                 self.back.prev();
-                self.back.set_empty(false);
+                self.back.set_free(false);
                 self.front.next();
             }
-            self.buf[self.front.pos()] = entry;
-            return Ok(())
+            self.buf[self.front.pos()] = item;
+            return Ok(());
         }
-        if len == SIZE - 2 {
-           self.buf[self.front.pos()] = entry;
-           self.front.set_empty(false);
+        if len == LEN - 2 {
+           self.buf[self.front.pos()] = item;
+           self.front.set_free(false);
            return Ok(());
         }
-        self.buf[self.front.pos()] = entry;
+        self.buf[self.front.pos()] = item;
         self.front.next();
         Ok(())
     }
 
-    pub fn pop_back(&mut self) -> Option<E> {
+    pub fn pop_back(&mut self) -> Option<I> {
         let len = self.len();
         if len == 0 {
             return None;
         }
-        if len == SIZE {
-            self.back.set_empty(true);
+        if len == LEN {
+            self.back.set_free(true);
             return Some(self.buf[self.back.pos()]);
         }
-        if len == SIZE - 1 {
-            if !self.back.empty() {
-                self.back.set_empty(true);
+        if len == LEN - 1 {
+            if self.front.is_free() {
+                self.back.set_free(true);
                 return Some(self.buf[self.back.pos()]);
             }
-            if !self.front.empty() {
+            if self.back.is_free() {
                 self.front.next();
                 self.back.prev();
-                self.front.set_empty(true);
+                self.front.set_free(true);
                 return Some(self.buf[self.back.pos()]);
             }
         }
@@ -180,24 +219,24 @@ where E: Copy + Default {
         Some(self.buf[self.back.pos()])
     }
 
-    pub fn pop_front(&mut self) -> Option<E> {
+    pub fn pop_front(&mut self) -> Option<I> {
         let len = self.len();
         if len == 0 {
             return None;
         }
-        if len == SIZE {
-            self.front.set_empty(true);
+        if len == LEN {
+            self.front.set_free(true);
             return Some(self.buf[self.front.pos()]);
         }
-        if len == SIZE - 1 {
-            if !self.front.empty() {
-                self.front.set_empty(true);
+        if len == LEN - 1 {
+            if !self.front.is_free() {
+                self.front.set_free(true);
                 return Some(self.buf[self.front.pos()]);
             }
-            if !self.back.empty() {
+            if !self.back.is_free() {
                 self.back.next();
                 self.front.prev();
-                self.back.set_empty(true);
+                self.back.set_free(true);
                 return Some(self.buf[self.front.pos()]);
             }
         }
@@ -205,48 +244,51 @@ where E: Copy + Default {
         Some(self.buf[self.front.pos()])
     }
 
-    fn iter(&self) -> Iter<SIZE> {
-        let mut front = Cursor::new(self.front.pos(), false);
-        let mut back = Cursor::new(self.back.pos(), true);
+    fn iter(&self) -> Iter {
+        let mut front = Cursor::new(self.front.pos(), LEN, false);
+        let mut back = Cursor::new(self.back.pos(), LEN, true);
         let mut end = false;
 
         let len = self.len();
         if len == 0 {
             end = true;
             front.next();
-        } else if len >= 1 && len < SIZE - 1 {
+        } else if len >= 1 && len < LEN - 1 {
             front.next();
             back.next();
-        } else if len == SIZE - 1 {
-            if self.front.empty() {
+        } else if len == LEN - 1 {
+            if self.front.is_free() {
                 front.next();
             }
-            if self.back.empty() {
+            if self.back.is_free() {
                 back.next();
             }
         }
 
-        Iter {
-            front: front,
-            back: back,
-            end: end,
-        }
+        Iter::new(front, back, LEN, end)
     }
 }
 
-struct Iter<const SIZE: usize> {
-    front: Cursor<SIZE>,
-    back: Cursor<SIZE>,
+struct Iter {
+    front: Cursor,
+    back: Cursor,
+    max: usize,
     end: bool,
 }
 
-impl<const SIZE: usize> Iter<SIZE> {
-    fn get_front(&self) -> (usize, bool) {
-        (self.front.pos(), self.front.empty())
+impl Iter {
+    fn new(front: Cursor, back: Cursor, len: usize, end: bool) -> Self {
+        Self {
+            front: front, back: back, max: len - 1, end: end,
+        }
     }
 
-    fn get_back(&self) -> (usize, bool) {
-        (self.back.pos(), self.back.empty())
+    fn get_front(&self) -> usize {
+        self.front.pos()
+    }
+
+    fn get_back(&self) -> usize {
+        self.back.pos()
     }
 
     fn len(&self) -> usize {
@@ -259,7 +301,7 @@ impl<const SIZE: usize> Iter<SIZE> {
         if self.back.pos() < self.front.pos() {
             return self.front.pos() - self.back.pos() + 1;
         }
-        self.front.pos() + (SIZE - 1 - self.front.pos()) + 1
+        self.front.pos() + (self.max - self.front.pos()) + 1
     }
 
     fn next(&mut self) -> Option<usize> {
@@ -268,8 +310,6 @@ impl<const SIZE: usize> Iter<SIZE> {
         }
         let len = self.len();
         if len == 1 {
-            self.front.set_empty(true);
-            self.back.set_empty(true);
             self.end = true;
             return Some(self.front.pos());
         }
@@ -284,8 +324,6 @@ impl<const SIZE: usize> Iter<SIZE> {
         }
         let len = self.len();
         if len == 1 {
-            self.front.set_empty(true);
-            self.back.set_empty(true);
             self.end = true;
             return Some(self.back.pos());
         }
@@ -298,39 +336,50 @@ impl<const SIZE: usize> Iter<SIZE> {
 /*
  * owning iterator
  */
-impl<E, const SIZE: usize> IntoIterator for UhvDeque<E, SIZE>
-where E: Copy + Default {
-    type Item = E;
-    type IntoIter = UhvDequeIter<E, SIZE>;
+impl<I, const LEN: usize> IntoIterator for Deque<I, LEN>
+where I: Copy + Default {
+    type Item = I;
+    type IntoIter = DequeIter<I, LEN>;
 
     fn into_iter(self) -> Self::IntoIter {
-        UhvDequeIter {
+        DequeIter {
             iter: self.iter(),
             deque: self,
         }
     }
 }
 
-pub struct UhvDequeIter<E, const SIZE: usize>
-where E: Copy + Default {
-    deque: UhvDeque<E, SIZE>,
-    iter: Iter<SIZE>,
+impl<I, const L: usize> FromIterator<I> for Deque<I, L>
+where I: Copy + Default {
+    fn from_iter<T: IntoIterator<Item = I>>(iter: T) -> Self {
+        let mut deque = Self::default();
+        for e in iter {
+            deque.push_back(e);
+        }
+        deque
+    }
 }
 
-impl<E, const SIZE: usize> UhvDequeIter<E, SIZE>
-where E: Copy + Default {
-    pub(crate) fn get_front(&self) -> (usize, bool) {
+pub struct DequeIter<I, const L: usize>
+where I: Copy + Default {
+    deque: Deque<I, L>,
+    iter: Iter,
+}
+
+impl<I, const LEN: usize> DequeIter<I, LEN>
+where I: Copy + Default {
+    pub(crate) fn get_front(&self) -> usize {
         self.iter.get_front()
     }
 
-    pub(crate) fn get_back(&self) -> (usize, bool) {
+    pub(crate) fn get_back(&self) -> usize {
         self.iter.get_back()
     }
 }
 
-impl<E, const SIZE: usize> Iterator for UhvDequeIter<E, SIZE>
-where E: Copy + Default {
-    type Item = E;
+impl<I, const L: usize> Iterator for DequeIter<I, L>
+where I: Copy + Default {
+    type Item = I;
 
     fn next(&mut self) -> Option<Self::Item> {
         let Some(idx) = self.iter.next() else {
@@ -344,8 +393,8 @@ where E: Copy + Default {
     }
 }
 
-impl<E, const SIZE: usize> DoubleEndedIterator for UhvDequeIter<E, SIZE>
-where E: Copy + Default {
+impl<I, const L: usize> DoubleEndedIterator for DequeIter<I, L>
+where I: Copy + Default {
     fn next_back(&mut self) -> Option<Self::Item> {
         let Some(idx) = self.iter.prev() else {
             return None;
@@ -354,37 +403,37 @@ where E: Copy + Default {
     }
 }
 
-impl<E, const SIZE: usize> ExactSizeIterator for UhvDequeIter<E, SIZE>
-where E: Copy + Default { }
+impl<I, const L: usize> ExactSizeIterator for DequeIter<I, L>
+where I: Copy + Default { }
 
 /*
  * reference iterator
  */
-impl<'a, E, const SIZE: usize> IntoIterator for &'a UhvDeque<E, SIZE>
-where E: Copy + Default {
-    type Item = &'a E;
-    type IntoIter = UhvDequeRefIter<'a, E, SIZE>;
+impl<'a, I, const L: usize> IntoIterator for &'a Deque<I, L>
+where I: Copy + Default {
+    type Item = &'a I;
+    type IntoIter = DequeRefIter<'a, I, L>;
 
     fn into_iter(self) -> Self::IntoIter {
-        UhvDequeRefIter {
+        DequeRefIter {
             iter: self.iter(),
             deque: &self,
         }
     }
 }
 
-pub struct UhvDequeRefIter<'a, E, const SIZE: usize>
-where E: Copy + Default {
-    deque: &'a UhvDeque<E, SIZE>,
-    iter: Iter<SIZE>,
+pub struct DequeRefIter<'a, I, const LEN: usize>
+where I: Copy + Default {
+    deque: &'a Deque<I, LEN>,
+    iter: Iter,
 }
 
-impl<'a, E, const SIZE: usize> ExactSizeIterator for UhvDequeRefIter<'a, E, SIZE>
-where E: Copy + Default { }
+impl<'a, I, const LEN: usize> ExactSizeIterator for DequeRefIter<'a, I, LEN>
+where I: Copy + Default { }
 
-impl<'a, E, const SIZE: usize> Iterator for UhvDequeRefIter<'a, E, SIZE>
-where E: Copy + Default {
-    type Item = &'a E;
+impl<'a, I, const LEN: usize> Iterator for DequeRefIter<'a, I, LEN>
+where I: Copy + Default {
+    type Item = &'a I;
 
     fn next(&mut self) -> Option<Self::Item> {
         let Some(idx) = self.iter.next() else {
@@ -398,8 +447,8 @@ where E: Copy + Default {
     }
 }
 
-impl<'a, E, const SIZE: usize> DoubleEndedIterator for UhvDequeRefIter<'a, E, SIZE>
-where E: Copy + Default {
+impl<'a, I, const LEN: usize> DoubleEndedIterator for DequeRefIter<'a, I, LEN>
+where I: Copy + Default {
     fn next_back(&mut self) -> Option<Self::Item> {
         let Some(idx) = self.iter.prev() else {
             return None;

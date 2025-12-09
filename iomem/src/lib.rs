@@ -60,11 +60,9 @@ pub struct IOBufMem<'a> {
 }
 
 impl IOBufMem<'_> {
-    pub fn new(base: usize, len: usize) -> Self {
+    pub unsafe fn new(base: usize, len: usize) -> Self {
         Self {
-            buf: unsafe {
-                slice::from_raw_parts_mut(ptr::without_provenance_mut(base), len)
-            },
+            buf: slice::from_raw_parts_mut(ptr::without_provenance_mut(base), len),
         }
     }
 
