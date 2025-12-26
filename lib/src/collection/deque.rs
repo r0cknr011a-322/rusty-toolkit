@@ -1,3 +1,5 @@
+use core::array::{ from_fn };
+
 #[derive(Clone, Copy)]
 struct Cursor {
     pos: usize,
@@ -83,15 +85,14 @@ impl DequeCursor {
 }
 
 #[derive(Clone, Copy)]
-pub struct Deque<I, const L: usize>
-where I: Copy + Default {
+pub struct Deque<I, const L: usize> {
     buf: [I; L],
     front: DequeCursor,
     back: DequeCursor,
 }
 
 impl<I, const LEN: usize> Default for Deque<I, LEN>
-where I: Copy + Default {
+where I: Default + Copy {
     fn default() -> Self {
         Self {
             buf: [I::default(); LEN],
@@ -101,8 +102,15 @@ where I: Copy + Default {
     }
 }
 
-impl<I, const LEN: usize> Deque<I, LEN>
-where I: Copy + Default {
+impl<I, const LEN: usize> Deque<I, LEN> {
+    pub fn new<F: FnMut(usize) -> I>(f: F) -> Self {
+        Self {
+            buf: from_fn(f),
+            front: DequeCursor::new(Cursor::new(0, LEN, true)),
+            back: DequeCursor::new(Cursor::new(LEN - 1, LEN, false)),
+        }
+    }
+
     pub(crate) fn get_front(&self) -> (usize, bool) {
         (self.front.pos(), self.front.is_free())
     }

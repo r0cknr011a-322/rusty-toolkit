@@ -6,8 +6,7 @@ use core::arch::global_asm;
 use core::fmt::{ self, Write };
 use core::cell::{ Cell };
 use core::array::{ self };
-use rusty_scrapyard_lib::log::buf::{ LogBuf };
-use rusty_scrapyard_lib::io::{ AsyncWrite, AsyncRead, Poll as IOPoll, Error as IOError };
+use rusty_scrapyard_lib::service::{ Service, Poll as IOPoll, Error as IOError };
 use rusty_scrapyard_iomem::{ IOBufMem };
 use rusty_scrapyard_lib::uart16550::{ UART16550 };
 
