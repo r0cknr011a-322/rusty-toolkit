@@ -5,4 +5,4 @@ edition = "2024"
 authors = [ "r0cknr011a" ]
 
 [dependencies]
-rusty-scrapyard-iomem = { path = "../iomem" }
+toolkit-unsafe = { path = "../unsafe" }

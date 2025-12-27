@@ -102,7 +102,8 @@ where I: Default + Copy {
     }
 }
 
-impl<I, const LEN: usize> Deque<I, LEN> {
+impl<I, const LEN: usize> Deque<I, LEN>
+where I: Copy {
     pub fn new<F: FnMut(usize) -> I>(f: F) -> Self {
         Self {
             buf: from_fn(f),

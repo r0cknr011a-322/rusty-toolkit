@@ -1,4 +1,4 @@
-use rusty_scrapyard_iomem::{ RawBuf };
+use toolkit_unsafe::{ RawBuf };
 
 pub trait DevBuf {
     fn rd8(&mut self, off: usize) -> u8;
