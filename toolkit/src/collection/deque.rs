@@ -102,8 +102,7 @@ where I: Default + Copy {
     }
 }
 
-impl<I, const LEN: usize> Deque<I, LEN>
-where I: Copy {
+impl<I: Copy, const LEN: usize> Deque<I, LEN> {
     pub fn new<F: FnMut(usize) -> I>(f: F) -> Self {
         Self {
             buf: from_fn(f),
@@ -345,8 +344,7 @@ impl Iter {
 /*
  * owning iterator
  */
-impl<I, const LEN: usize> IntoIterator for Deque<I, LEN>
-where I: Copy + Default {
+impl<I: Copy, const LEN: usize> IntoIterator for Deque<I, LEN> {
     type Item = I;
     type IntoIter = DequeIter<I, LEN>;
 
@@ -358,14 +356,12 @@ where I: Copy + Default {
     }
 }
 
-impl<I, const L: usize> FromIterator<I> for Deque<I, L>
-where I: Copy {
-    fn from_iter<T: IntoIterator<Item = I>>(iter: T) -> Self {
-        let mut deque = Self::default();
-        for e in iter {
-            deque.push_back(e);
-        }
-        deque
+impl<I: Copy, const L: usize> FromIterator<I> for Deque<I, L> {
+    fn from_iter<IntoIter: IntoIterator<Item = I>>(into_iter: IntoIter) -> Self {
+        let iter = into_iter.into_iter();
+        Self::new(|idx| {
+            iter.next()
+        })
     }
 }
 
@@ -409,13 +405,12 @@ impl<I: Copy, const L: usize> DoubleEndedIterator for DequeIter<I, L> {
     }
 }
 
-impl<I, const L: usize> ExactSizeIterator for DequeIter<I, L> { }
+impl<I: Copy, const L: usize> ExactSizeIterator for DequeIter<I, L> { }
 
 /*
  * reference iterator
  */
-impl<'a, I, const L: usize> IntoIterator for &'a Deque<I, L>
-where I: Copy + Default {
+impl<'a, I: Copy, const L: usize> IntoIterator for &'a Deque<I, L> {
     type Item = &'a I;
     type IntoIter = DequeRefIter<'a, I, L>;
 
@@ -427,17 +422,14 @@ where I: Copy + Default {
     }
 }
 
-pub struct DequeRefIter<'a, I, const LEN: usize>
-where I: Copy + Default {
+pub struct DequeRefIter<'a, I, const LEN: usize> {
     deque: &'a Deque<I, LEN>,
     iter: Iter,
 }
 
-impl<'a, I, const LEN: usize> ExactSizeIterator for DequeRefIter<'a, I, LEN>
-where I: Copy + Default { }
+impl<'a, I, const LEN: usize> ExactSizeIterator for DequeRefIter<'a, I, LEN> { }
 
-impl<'a, I, const LEN: usize> Iterator for DequeRefIter<'a, I, LEN>
-where I: Copy + Default {
+impl<'a, I, const LEN: usize> Iterator for DequeRefIter<'a, I, LEN> {
     type Item = &'a I;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -452,8 +444,7 @@ where I: Copy + Default {
     }
 }
 
-impl<'a, I, const LEN: usize> DoubleEndedIterator for DequeRefIter<'a, I, LEN>
-where I: Copy + Default {
+impl<'a, I, const LEN: usize> DoubleEndedIterator for DequeRefIter<'a, I, LEN> {
     fn next_back(&mut self) -> Option<Self::Item> {
         let Some(idx) = self.iter.prev() else {
             return None;

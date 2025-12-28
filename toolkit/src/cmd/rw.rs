@@ -12,8 +12,10 @@ pub struct Cmd<const LEN: usize> {
 }
 
 impl<const L: usize> Cmd<L> {
-    pub fn new<L>(iter: I) -> Self<L> {
-        Deque::new(
+    pub fn new<F: FnMut(usize) -> I>(f: F) -> Self<L> {
+        Self {
+            buf: Deque::new(f),
+        }
     }
 }
 
