@@ -1,6 +1,7 @@
 use core::cmp::{ min };
-use crate::trx::{ Queue, Poll, Task, RWRequest, RWResponse, RWError };
-use crate::mem::{ DevBuf };
+use crate::cmd::buf::{ Buf, Poll, Task };
+use crate::cmd::rw::{ RWRequest, RWResponse, RWError };
+use crate::mem::{ VolatileBuf };
 
 pub struct Uart16550<IO> {
     io: IO,
@@ -14,9 +15,28 @@ impl<IO> Uart16550<IO> {
     }
 }
 
-pub struct Uart16550Task<'a, const LEN: usize, IO> {
+impl<IO> Buf<RWRequest> for Uart16550<IO> {
+    type Response = RWResponse;
+    type Error = RWError;
+
+    fn poll_queue(&mut self) -> Poll<Result<(), Self::Error>> {
+        
+    }
+
+    fn queue(&mut self, req: Request) -> Self::Task {
+        Uart16550Task::new
+    }
+}
+
+pub struct Uart16550Task<IO, const LEN: usize> {
     io: IO,
-    req: RWRequest<'a, LEN>,
+    req: RWRequest<LEN>,
+}
+
+impl<IO, const LEN: usize> Uart16550Task<IO, LEN> {
+    fn new(io: IO) -> Self {
+        
+    }
 }
 
 /*

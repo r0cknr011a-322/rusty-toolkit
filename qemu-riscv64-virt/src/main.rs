@@ -6,9 +6,9 @@ use core::arch::global_asm;
 use core::fmt::{ self, Write };
 use core::cell::{ Cell };
 use core::array::{ self };
-use rusty_scrapyard_lib::service::{ Service, Poll as IOPoll, Error as IOError };
-use rusty_scrapyard_iomem::{ IOBufMem };
-use rusty_scrapyard_lib::uart16550::{ UART16550 };
+use toolkit::service::{ Service, Poll as IOPoll, Error as IOError };
+use toolkit::uart16550::{ UART16550 };
+use toolkit_unsafe::{ RawBuf };
 
 global_asm!(include_str!("trap.S"));
 

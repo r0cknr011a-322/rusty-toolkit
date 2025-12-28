@@ -1,6 +1,6 @@
 use toolkit_unsafe::{ RawBuf };
 
-pub trait DevBuf {
+pub trait VolatileBuf {
     fn rd8(&mut self, off: usize) -> u8;
     fn wr8(&mut self, off: usize, value: u8);
 
@@ -15,11 +15,11 @@ pub trait DevBuf {
 }
 
 #[derive(Clone, Copy)]
-pub struct DevBufMem {
+pub struct VolatileMem {
     mem: RawBuf,
 }
 
-impl DevBuf for DevBufMem {
+impl VolatileBuf for VolatileMem {
     fn rd8(&mut self, off: usize) -> u8 {
         self.mem.rd8_volatile(off)
     }

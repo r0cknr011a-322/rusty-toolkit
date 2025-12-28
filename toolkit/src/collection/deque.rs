@@ -359,7 +359,7 @@ where I: Copy + Default {
 }
 
 impl<I, const L: usize> FromIterator<I> for Deque<I, L>
-where I: Copy + Default {
+where I: Copy {
     fn from_iter<T: IntoIterator<Item = I>>(iter: T) -> Self {
         let mut deque = Self::default();
         for e in iter {
@@ -369,14 +369,13 @@ where I: Copy + Default {
     }
 }
 
-pub struct DequeIter<I, const L: usize>
-where I: Copy + Default {
-    deque: Deque<I, L>,
+pub struct DequeIter<I, const LEN: usize> {
+    deque: Deque<I, LEN>,
     iter: Iter,
 }
 
 impl<I, const LEN: usize> DequeIter<I, LEN>
-where I: Copy + Default {
+where I: Copy {
     pub(crate) fn get_front(&self) -> usize {
         self.iter.get_front()
     }
@@ -386,8 +385,7 @@ where I: Copy + Default {
     }
 }
 
-impl<I, const L: usize> Iterator for DequeIter<I, L>
-where I: Copy + Default {
+impl<I: Copy, const L: usize> Iterator for DequeIter<I, L> {
     type Item = I;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -402,8 +400,7 @@ where I: Copy + Default {
     }
 }
 
-impl<I, const L: usize> DoubleEndedIterator for DequeIter<I, L>
-where I: Copy + Default {
+impl<I: Copy, const L: usize> DoubleEndedIterator for DequeIter<I, L> {
     fn next_back(&mut self) -> Option<Self::Item> {
         let Some(idx) = self.iter.prev() else {
             return None;
@@ -412,8 +409,7 @@ where I: Copy + Default {
     }
 }
 
-impl<I, const L: usize> ExactSizeIterator for DequeIter<I, L>
-where I: Copy + Default { }
+impl<I, const L: usize> ExactSizeIterator for DequeIter<I, L> { }
 
 /*
  * reference iterator
