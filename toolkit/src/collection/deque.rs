@@ -1,49 +1,5 @@
 use core::array::{ from_fn };
-
-#[derive(Clone, Copy)]
-struct Cursor {
-    pos: usize,
-    max: usize,
-    inc: bool,
-}
-
-impl Cursor {
-    fn new(pos: usize, len: usize, inc: bool) -> Self {
-        Self {
-            pos: pos, max: len - 1, inc: inc,
-        }
-    }
-
-    fn pos(&self) -> usize {
-        self.pos
-    }
-
-    fn next(&mut self) {
-        self.pos = match self.inc {
-            true => match self.pos == self.max {
-                true => 0,
-                false => self.pos + 1,
-            },
-            false => match self.pos == 0 {
-                true => self.max,
-                false => self.pos - 1,
-            },
-        };
-    }
-
-    fn prev(&mut self) {
-        self.pos = match self.inc {
-            true => match self.pos == 0 {
-                true => self.max,
-                false => self.pos - 1,
-            },
-            false => match self.pos == self.max {
-                true => 0,
-                false => self.pos + 1,
-            },
-        };
-    }
-}
+use crate::collection::cursor::{ Cursor };
 
 #[derive(PartialEq, Debug)]
 pub enum DequeError {
@@ -91,8 +47,7 @@ pub struct Deque<I, const L: usize> {
     back: DequeCursor,
 }
 
-impl<I, const LEN: usize> Default for Deque<I, LEN>
-where I: Default + Copy {
+impl<I: Copy + Default, const LEN: usize> Default for Deque<I, LEN> {
     fn default() -> Self {
         Self {
             buf: [I::default(); LEN],
@@ -356,12 +311,16 @@ impl<I: Copy, const LEN: usize> IntoIterator for Deque<I, LEN> {
     }
 }
 
-impl<I: Copy, const L: usize> FromIterator<I> for Deque<I, L> {
+impl<I: Copy + Default, const L: usize> FromIterator<I> for Deque<I, L> {
     fn from_iter<IntoIter: IntoIterator<Item = I>>(into_iter: IntoIter) -> Self {
-        let iter = into_iter.into_iter();
-        Self::new(|idx| {
-            iter.next()
-        })
+        let mut deque = Deque::default();
+        into_iter.into_iter().for_each(|item| {
+            if deque.is_full() {
+                let _ = deque.pop_front();
+            }
+            deque.push_back(item);
+        });
+        deque
     }
 }
 
@@ -370,8 +329,7 @@ pub struct DequeIter<I, const LEN: usize> {
     iter: Iter,
 }
 
-impl<I, const LEN: usize> DequeIter<I, LEN>
-where I: Copy {
+impl<I: Copy, const LEN: usize> DequeIter<I, LEN> {
     pub(crate) fn get_front(&self) -> usize {
         self.iter.get_front()
     }
