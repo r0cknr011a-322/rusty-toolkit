@@ -3,12 +3,12 @@
 version = 4
 
 [[package]]
-name = "rusty-scrapyard-iomem"
-version = "0.0.1"
-
-[[package]]
 name = "rusty-scrapyard-lib"
 version = "0.0.1"
 dependencies = [
- "rusty-scrapyard-iomem",
+ "toolkit-unsafe",
 ]
+
+[[package]]
+name = "toolkit-unsafe"
+version = "0.0.2"

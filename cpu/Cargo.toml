@@ -1,7 +1,0 @@
-[package]
-name = "rusty-scrapyard-cpu"
-version = "0.0.1"
-edition = "2024"
-authors = [ "r0cknr011a" ]
-
-[dependencies]
