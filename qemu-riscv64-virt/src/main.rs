@@ -2,47 +2,14 @@
 #![no_main]
 
 use core::panic::{ PanicInfo };
-use core::arch::global_asm;
-use core::fmt::{ self, Write };
-use core::cell::{ Cell };
-use core::array::{ self };
-use toolkit::service::{ Service, Poll as IOPoll, Error as IOError };
-use toolkit::uart16550::{ UART16550 };
+use core::fmt::{ Write };
+use toolkit::runtime::{ Runtime, RuntimeInner };
+use toolkit::cmd::{ Buf, Poll, Error };
 use toolkit_unsafe::{ RawBuf };
 
+use core::arch::global_asm;
 global_asm!(include_str!("trap.S"));
 
-#[derive(Default)]
-struct LogCell<const LEN: usize> {
-    inner: Cell<LogBuf<LEN>>,
-}
-
-#[derive(Copy, Clone)]
-struct LogChan<'a, const LEN: usize> {
-    cell: &'a LogCell<LEN>,
-}
-
-impl<'a, const L: usize> LogChan<'a, L> {
-    fn new(cell: &'a LogCell<L>) -> Self {
-        Self {
-            cell: cell,
-        }
-    }
-}
-
-impl<'a, const L: usize> fmt::Write for LogChan<'_, L> {
-    fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
-        self.cell.inner.update(|mut logger| {
-            logger.write_str(s);
-            logger
-        });
-        Ok(())
-    }
-}
-
-enum Error {
-    Fatal,
-}
 
 fn some_one<const L: usize>(mut logger: LogChan<L>) {
     writeln!(logger, "some_one some_one some_one some_one");
@@ -52,17 +19,12 @@ fn some_two<const L: usize>(mut logger: LogChan<L>) {
     writeln!(logger, "some_two some_two some_two some_two");
 }
 
-fn logchan() -> impl AsyncWrite {
-    let iomem = IOBufMem::new(0x1000_0000, 0x08);
-    UART16550::new(iomem)
-}
-
-const LOG_BUF_LEN: usize = 512;
-
 #[unsafe(no_mangle)]
 pub extern "C" fn main() {
-    let logcell = LogCell::<LOG_BUF_LEN>::default();
-    let logger = LogChan::new(&logcell);
+    let bufdeque = Deque::<RawBuf, 8>::new(|idx| {
+        
+    });
+    let runtime_inner = RuntimeInner::new(&logcell);
 
     some_one(logger);
     some_two(logger);

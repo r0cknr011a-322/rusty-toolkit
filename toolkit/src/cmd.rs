@@ -5,18 +5,11 @@ pub enum Poll<T> {
     Pending,
 }
 
-pub trait Buf {
+pub trait Queue {
     type Request;
     type Response;
     type Error;
-    type Task: Task<Response = Self::Response, Error = Self::Error>;
 
-    fn push(&mut self, req: Self::Request) -> Poll<Result<Self::Task, Self::Error>>;
-}
-
-pub trait Task {
-    type Response;
-    type Error;
-
+    fn push(&mut self, req: Self::Request) -> Poll<Result<(), Self::Error>>;
     fn pop(&mut self) -> Poll<Result<Self::Response, Self::Error>>;
 }
