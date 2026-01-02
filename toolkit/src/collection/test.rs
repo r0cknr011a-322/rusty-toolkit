@@ -270,3 +270,47 @@ fn deque_from_iter() {
     assert_eq!(deque.get_front(), (0, true));
     assert_eq!(deque.get_back(), (5, true));
 }
+
+#[test]
+fn deque_equals() {
+    // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C ]
+    let buf: [TestItem; DATA_LEN] = core::array::from_fn(|i|
+        TestItem::new(i.try_into().unwrap())
+    );
+
+    let ldeque = Deque::<TestItem, 11>::default();
+    for i in 0..4 {
+        ldeque.push_front(buf[3 - i]);
+    }
+    for i in 0..4 {
+        ldeque.push_back(buf[4 + i]);
+    }
+    //               |>
+    // [ 3, 2, 1, 0, x, x, x, 7, 6, 5, 4 ]
+    //                    <|
+    assert_eq!(ldeque.len(), 8);
+
+    let rdeque = Deque::<TestItem, 15>::default();
+    for i in 0..DATA_LEN {
+        rdeque.push_front(buf[i]);
+    }
+
+    assert_ne!(ldeque, rdeque);
+
+    for i in 0..5 {
+        rdeque.pop_back();
+    }
+    for i in 0..8 {
+        rdeque.pop_front();
+    }
+    for i in 0..8 {
+        rdeque.push_front(buf[i]);
+    }
+    //                                          |>
+    // [ x, x, x, x, x, 0, 1, 2, 3, 4, 5, 6, 7, x, x, x ]
+    //              <|
+    assert_eq!(rdeque.len(), 8);
+
+    assert_eq!(ldeque, rdeque);
+    assert_eq!(rdeque, ldeque);
+}

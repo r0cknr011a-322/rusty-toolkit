@@ -1,47 +1,65 @@
 use core::fmt::{ self, Write };
 use core::cell::{ Cell };
 use core::time::{ Duration };
-use crate::collection::deque::{ Deque };
-use crate::cmd::{ Queue };
-use crate::cmd::rw::{ Request, Response, Error };
+use crate::collection::{ Deque, String };
+use crate::cmd::{ RWQueue };
 use toolkit_unsafe::{ RawBuf };
+
+const LOG_CHAN_NAME_LEN: usize =
+    option_env!("LOG_CHAN_NAME_LEN")
+    .unwrap_or(16);
+const LOG_CHAN_NAME_DEFAULT: &str =
+    option_env!("LOG_CHAN_NAME_DEFAULT")
+    .unwrap_or("void-chan");
 
 pub trait Time {
     fn time(&mut self) -> Duration;
 }
 
-pub trait Runtime: Write + Timer { }
+pub trait Runtime: Write + Time { }
 
-pub struct RuntimeInner<T, RW, const LOGLEN: usize, const BUFLEN: usize> {
-    logbuf: Deque<char, LOGLEN>,
+pub struct RuntimeInner <T, Q,
+const CHANLEN: usize, const CHANNR: usize, const BUFLEN: usize>
+{
+    logchanbuf: Deque<LogChan<CHANLEN>, CHANNR>,
     timer: T,
-    rwbufbuf: Deque<RawBuf, BUFLEN>,
-    rw: RW,
+    rwqueue: Q,
+    rwbufqueue: Deque<RawBuf, BUFLEN>,
 }
 
-impl<T, RW, const LOGLEN: usize, const BUFLEN: usize>
-RuntimeInner<T, RW, LOGLEN, BUFLEN>
+impl<T, RW,
+const CHANLEN: usize, const CHANNR: usize, const BUFLEN: usize>
+RuntimeInner<T, RW, CHANLEN, CHANNR, BUFLEN>
 {
-    pub fn new(timer: T, rw: RW, rwbuf: Deque<RawBuf, BUFLEN>) -> Self {
+    pub fn new<'a, ChanCtr: FnMut(usize) -> &'a str>(
+        timer: T,
+        rwcmd: RW, rwdata: Deque<RawBuf, BUFLEN>,
+        chanmap: ChanCtr
+    ) -> Self {
+        let logchanbuf = Deque::new(|idx| {
+            LogChan::new(chanmap(idx));
+        });
         Self {
-            logbuf: Deque::default(),
             timer: timer,
-            rw: rw, rwbufbuf: rwbuf,
+            rwqueue: rwcmd, rwbufqueue: rwdata,
+            logchanbuf: logchanbuf,
         }
     }
 }
 
-impl<T, RW, const LOGLEN: usize, const BUFLEN: usize>
-RuntimeInner<T, RW, LOGLEN, BUFLEN>
-where T: Timer {
+impl<T, RW,
+const CHANLEN: usize, const CHANNR: usize, const BUFLEN: usize>
+RuntimeInner<T, RW, CHANLEN, CHANNR, BUFLEN>
+where T: Time {
     fn time(&mut self) -> Duration {
         self.timer.time()
     }
 }
 
-impl<T, RW, const LOGLEN: usize, const BUFLEN: usize>
-Write for RuntimeInner<T, RW, LOGLEN, BUFLEN>
-where RW: Queue<Request=Request, Response=Response, Error=Error> {
+impl<T, Q,
+const CHANLEN: usize, const CHANNR: usize, const BUFLEN: usize>
+Write for RuntimeInner<T, Q, CHANLEN, CHANNR, BUFLEN>
+where Q: RWQueue {
     fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
         Err(fmt::Error)
 /*
@@ -56,12 +74,30 @@ where RW: Queue<Request=Request, Response=Response, Error=Error> {
 }
 
 #[derive(Clone, Copy)]
-pub struct RuntimeCell<'a, T, RW, const LOGLEN: usize, const BUFLEN: usize> {
-    cell: Cell<&'a RuntimeInner<T, RW, LOGLEN, BUFLEN>>,
+pub struct RuntimeCell<'a, T, Q,
+const CHANLEN: usize, const CHANNR: usize, const BUFLEN: usize> {
+    chan: String<LOG_CHAN_NAME_LEN>,
+    cell: Cell<&'a RuntimeInner<T, Q, CHANLEN, CHANNR, BUFLEN>>,
 }
 
-impl<'a, T, RW, const LOGLEN: usize, const BUFLEN: usize>
-Time for RuntimeCell<'_, T, RW, LOGLEN, BUFLEN> {
+impl<'a, T, Q,
+const CHANLEN: usize, const CHANNR: usize, const BUFLEN: usize>
+RuntimeCell<'_, T, Q, CHANLEN, CHANNR, BUFLEN> {
+    pub fn find(rt: &RuntimeInner<T, Q, CHANLEN, CHANNR, BUFLEN>, name: &str) -> Option<Self> {
+        let namestr = String::new(name);
+        let Some(chan) = rt.logchanbuf.find(|&chan| namestr == chan.name) else {
+            return None;
+        }
+        Some(Self {
+            chan: namestr,
+            cell: Cell::new(rt),
+        })
+    }
+}
+
+impl<'a, T, Q,
+const CHANLEN: usize, const CHANNR: usize, const BUFLEN: usize>
+Time for RuntimeCell<'_, T, Q, CHANLEN, CHANNR, BUFLEN> {
     fn time(&mut self) -> Duration {
         let time;
         self.cell.update(|rt| {
@@ -72,8 +108,9 @@ Time for RuntimeCell<'_, T, RW, LOGLEN, BUFLEN> {
     }
 }
 
-impl<'a, T, RW, const LOGLEN: usize, const BUFLEN: usize>
-Write for RuntimeCell<'_, T, RW, LOGLEN, BUFLEN> {
+impl<'a, T, Q,
+const CHANLEN: usize, const CHANNR: usize, const BUFLEN: usize>
+Write for RuntimeCell<'_, T, Q, CHANLEN, CHANNR, BUFLEN> {
     fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
         let res;
         self.cell.update(|rt| {
@@ -81,5 +118,19 @@ Write for RuntimeCell<'_, T, RW, LOGLEN, BUFLEN> {
             rt
         })
         res
+    }
+}
+
+struct LogChan<const LEN: usize> {
+    name: String<LOG_CHAN_NAME_LEN>,
+    buf: Deque<u8, LEN>,
+}
+
+impl<const LEN: usize> LogChan<LEN> {
+    fn new(name: &str) {
+        Self {
+            name: String::new(name),
+            buf: Deque::default(),
+        }
     }
 }

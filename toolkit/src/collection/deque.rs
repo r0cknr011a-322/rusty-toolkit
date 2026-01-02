@@ -1,5 +1,4 @@
 use core::array::{ from_fn };
-use crate::collection::cursor::{ Cursor };
 
 #[derive(PartialEq, Debug)]
 pub enum DequeError {
@@ -40,24 +39,47 @@ impl DequeCursor {
     }
 }
 
-#[derive(Clone, Copy)]
 pub struct Deque<I, const L: usize> {
     buf: [I; L],
     front: DequeCursor,
     back: DequeCursor,
 }
 
-impl<I: Copy + Default, const LEN: usize> Default for Deque<I, LEN> {
-    fn default() -> Self {
+impl<I: Clone, const LEN: usize>
+Clone for Deque<I, LEN> {
+    fn clone(&self) -> Self {
         Self {
-            buf: [I::default(); LEN],
-            front: DequeCursor::new(Cursor::new(0, LEN, true)),
-            back: DequeCursor::new(Cursor::new(LEN - 1, LEN, false)),
+            buf: self.buf.clone(),
+            front: self.front,
+            back: self.back,
         }
     }
 }
 
-impl<I: Copy, const LEN: usize> Deque<I, LEN> {
+impl<I: Copy, const LEN: usize>
+Copy for Deque<I, LEN> { }
+
+impl<I: PartialEq, const LEN: usize>
+PartialEq<Rhs=Self> for Deque<I, LEN> {
+    fn eq(&self, other: &Rhs) -> bool {
+        if self.len() != other.len() {
+            return false;
+        }
+        let mut lfront = self.front;
+        let mut rfront = other.front;
+        for idx in 0..self.len() {
+            if self.buf[lfront.pos()] != other.buf[rfront.pos()] {
+                return false;
+            }
+            lfront.prev();
+            rfront.prev();
+        }
+        return true;
+    }
+}
+
+impl<I, const LEN: usize>
+Deque<I, LEN> {
     pub fn new<F: FnMut(usize) -> I>(f: F) -> Self {
         Self {
             buf: from_fn(f),
@@ -105,6 +127,57 @@ impl<I: Copy, const LEN: usize> Deque<I, LEN> {
         self.len() == self.capacity()
     }
 
+    fn iter(&self) -> Iter {
+        let mut front = Cursor::new(self.front.pos(), LEN, false);
+        let mut back = Cursor::new(self.back.pos(), LEN, true);
+        let mut end = false;
+
+        let len = self.len();
+        if len == 0 {
+            end = true;
+            front.next();
+        } else if len >= 1 && len < LEN - 1 {
+            front.next();
+            back.next();
+        } else if len == LEN - 1 {
+            if self.front.is_free() {
+                front.next();
+            }
+            if self.back.is_free() {
+                back.next();
+            }
+        }
+
+        Iter::new(front, back, LEN, end)
+    }
+}
+
+impl<I: Copy + Default, const LEN: usize>
+Default for Deque<I, LEN> {
+    fn default() -> Self {
+        Self {
+            buf: [I::default(); LEN],
+            front: DequeCursor::new(Cursor::new(0, LEN, true)),
+            back: DequeCursor::new(Cursor::new(LEN - 1, LEN, false)),
+        }
+    }
+}
+
+impl<I: Copy + Default, const L: usize> FromIterator<I> for Deque<I, L> {
+    fn from_iter<IntoIter: IntoIterator<Item=I>>(other: IntoIter) -> Self {
+        let mut deque = Deque::default();
+        for item in other {
+            if deque.is_full() {
+                deque.pop_front();
+            }
+            deque.push_back(item);
+        }
+        deque
+    }
+}
+
+impl<I: Copy, const LEN: usize>
+Deque<I, LEN> {
     pub fn push_back(&mut self, item: I) -> Result<(), DequeError> {
         let len = self.len();
         if len == LEN {
@@ -206,30 +279,6 @@ impl<I: Copy, const LEN: usize> Deque<I, LEN> {
         self.front.prev();
         Some(self.buf[self.front.pos()])
     }
-
-    fn iter(&self) -> Iter {
-        let mut front = Cursor::new(self.front.pos(), LEN, false);
-        let mut back = Cursor::new(self.back.pos(), LEN, true);
-        let mut end = false;
-
-        let len = self.len();
-        if len == 0 {
-            end = true;
-            front.next();
-        } else if len >= 1 && len < LEN - 1 {
-            front.next();
-            back.next();
-        } else if len == LEN - 1 {
-            if self.front.is_free() {
-                front.next();
-            }
-            if self.back.is_free() {
-                back.next();
-            }
-        }
-
-        Iter::new(front, back, LEN, end)
-    }
 }
 
 struct Iter {
@@ -311,18 +360,7 @@ impl<I: Copy, const LEN: usize> IntoIterator for Deque<I, LEN> {
     }
 }
 
-impl<I: Copy + Default, const L: usize> FromIterator<I> for Deque<I, L> {
-    fn from_iter<IntoIter: IntoIterator<Item = I>>(into_iter: IntoIter) -> Self {
-        let mut deque = Deque::default();
-        into_iter.into_iter().for_each(|item| {
-            if deque.is_full() {
-                let _ = deque.pop_front();
-            }
-            deque.push_back(item);
-        });
-        deque
-    }
-}
+
 
 pub struct DequeIter<I, const LEN: usize> {
     deque: Deque<I, LEN>,
@@ -368,7 +406,7 @@ impl<I: Copy, const L: usize> ExactSizeIterator for DequeIter<I, L> { }
 /*
  * reference iterator
  */
-impl<'a, I: Copy, const L: usize> IntoIterator for &'a Deque<I, L> {
+impl<'a, I, const L: usize> IntoIterator for &'a Deque<I, L> {
     type Item = &'a I;
     type IntoIter = DequeRefIter<'a, I, L>;
 

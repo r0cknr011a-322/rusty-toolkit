@@ -5,7 +5,6 @@ use core::mem::{ self };
 use core::slice::{ self };
 use core::sync::atomic::{ AtomicU8, AtomicU16, AtomicU32, AtomicU64, Ordering };
 
-#[derive(Clone, Copy)]
 pub struct RawBuf {
     buf: &'static [u8],
 }

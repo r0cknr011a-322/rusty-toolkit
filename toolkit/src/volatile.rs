@@ -14,7 +14,6 @@ pub trait VolatileBuf {
     fn wr64(&mut self, off: usize, value: u64);
 }
 
-#[derive(Clone, Copy)]
 pub struct VolatileMem {
     mem: RawBuf,
 }

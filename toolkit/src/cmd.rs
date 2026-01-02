@@ -1,5 +1,3 @@
-pub mod rw;
-
 pub enum Poll<T> {
     Ready(T),
     Pending,
