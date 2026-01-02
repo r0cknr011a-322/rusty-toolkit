@@ -5,7 +5,7 @@ pub struct String<const LEN: usize> {
     deque: Deque<u8, LEN>,
 }
 
-impl<const LEN: usize> String {
+impl<const LEN: usize> String<LEN> {
     pub fn new(s: &str) -> Self {
         let deque = Deque::default();
         for b in s.as_bytes() {

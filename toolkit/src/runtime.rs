@@ -2,7 +2,7 @@ use core::fmt::{ self, Write };
 use core::cell::{ Cell };
 use core::time::{ Duration };
 use crate::collection::{ Deque, String };
-use crate::cmd::{ RWQueue };
+use crate::cmd::rw::{ Queue };
 use toolkit_unsafe::{ RawBuf };
 
 const LOG_CHAN_NAME_LEN: usize =
@@ -47,20 +47,18 @@ RuntimeInner<T, RW, CHANLEN, CHANNR, BUFLEN>
     }
 }
 
-impl<T, RW,
+impl<T: Time, Q,
 const CHANLEN: usize, const CHANNR: usize, const BUFLEN: usize>
-RuntimeInner<T, RW, CHANLEN, CHANNR, BUFLEN>
-where T: Time {
+RuntimeInner<T, Q, CHANLEN, CHANNR, BUFLEN> {
     fn time(&mut self) -> Duration {
         self.timer.time()
     }
 }
 
-impl<T, Q,
+impl<T, Q: Queue,
 const CHANLEN: usize, const CHANNR: usize, const BUFLEN: usize>
-Write for RuntimeInner<T, Q, CHANLEN, CHANNR, BUFLEN>
-where Q: RWQueue {
-    fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
+Write for RuntimeInner<T, Q, CHANLEN, CHANNR, BUFLEN> {
+    fn write_str(&mut self, _s: &str) -> Result<(), fmt::Error> {
         Err(fmt::Error)
 /*
         if self.deque.capacity() - self.deque.len() < s.len() {
@@ -87,7 +85,7 @@ RuntimeCell<'_, T, Q, CHANLEN, CHANNR, BUFLEN> {
         let namestr = String::new(name);
         let Some(chan) = rt.logchanbuf.find(|&chan| namestr == chan.name) else {
             return None;
-        }
+        };
         Some(Self {
             chan: namestr,
             cell: Cell::new(rt),
@@ -95,11 +93,11 @@ RuntimeCell<'_, T, Q, CHANLEN, CHANNR, BUFLEN> {
     }
 }
 
-impl<'a, T, Q,
+impl<'a, T: Time, Q,
 const CHANLEN: usize, const CHANNR: usize, const BUFLEN: usize>
 Time for RuntimeCell<'_, T, Q, CHANLEN, CHANNR, BUFLEN> {
     fn time(&mut self) -> Duration {
-        let time;
+        let mut time = Duration::default();
         self.cell.update(|rt| {
             time = rt.time();
             rt
@@ -127,7 +125,7 @@ struct LogChan<const LEN: usize> {
 }
 
 impl<const LEN: usize> LogChan<LEN> {
-    fn new(name: &str) {
+    fn new(name: &str) -> Self {
         Self {
             name: String::new(name),
             buf: Deque::default(),

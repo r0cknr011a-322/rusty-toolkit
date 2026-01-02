@@ -1,4 +1,5 @@
 use core::array::{ from_fn };
+use crate::collection::cursor::{ Cursor };
 
 #[derive(PartialEq, Debug)]
 pub enum DequeError {
@@ -60,14 +61,14 @@ impl<I: Copy, const LEN: usize>
 Copy for Deque<I, LEN> { }
 
 impl<I: PartialEq, const LEN: usize>
-PartialEq<Rhs=Self> for Deque<I, LEN> {
-    fn eq(&self, other: &Rhs) -> bool {
+PartialEq<Self> for Deque<I, LEN> {
+    fn eq(&self, other: &Self) -> bool {
         if self.len() != other.len() {
             return false;
         }
         let mut lfront = self.front;
         let mut rfront = other.front;
-        for idx in 0..self.len() {
+        for _ in 0..self.len() {
             if self.buf[lfront.pos()] != other.buf[rfront.pos()] {
                 return false;
             }

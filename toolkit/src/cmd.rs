@@ -1,9 +1,11 @@
+pub mod rw;
+
 pub enum Poll<T> {
     Ready(T),
     Pending,
 }
 
-pub trait Queue {
+pub trait CmdQueue {
     type Request;
     type Response;
     type Error;

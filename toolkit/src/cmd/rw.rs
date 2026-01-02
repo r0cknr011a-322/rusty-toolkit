@@ -1,8 +1,8 @@
-use crate::collection::deque::{ Deque };
+use crate::cmd::{ CmdQueue, Poll };
 use toolkit_unsafe::{ RawBuf };
 
 #[derive(Default)]
-pub enum RWRequest {
+pub enum Request {
     #[default]
     Noop,
     Read(RawBuf),
@@ -10,18 +10,18 @@ pub enum RWRequest {
 }
 
 #[derive(Default)]
-pub enum RWResponse {
+pub enum Response {
     #[default]
     Ok,
 }
 
 #[derive(Default)]
-pub enum RWError {
+pub enum Error {
     #[default]
     Fatal,
 }
 
-pub trait RWQueue<Request=Request, Response=&Response, Error=Error> {
+pub trait Queue: CmdQueue<Request=Request, Response=&Response, Error=Error> {
     fn push(&mut self, req: Request) -> Poll<Result<(), Error>> {
         self.push(req)
     }
