@@ -1,10 +1,10 @@
 use core::fmt::{ self, Write };
-use core::cell::{ Cell };
+// use core::cell::{ Cell };
 use core::time::{ Duration };
 use crate::collection::deque::{ Deque };
 use crate::collection::string::{ String };
-use crate::cmd::rw::{ Queue };
-use toolkit_unsafe::{ RawBuf };
+// use crate::cmd::rw::{ Queue };
+// use toolkit_unsafe::{ RawBuf };
 
 pub trait Time {
     fn time(&mut self) -> Duration;
@@ -23,6 +23,20 @@ impl<const N: usize, const D: usize> LogChan<N, D> {
             name: String::new(name),
             data: Deque::default(),
         }
+    }
+}
+
+impl<const N: usize, const D: usize> Write for LogChan<N, D> {
+    fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
+        if self.data.is_full() {
+            for _ in 0..s.len() {
+                self.data.pop_front();
+            }
+        }
+        for b in s.as_bytes() {
+            self.data.push_back(*b);
+        }
+        Ok(())
     }
 }
 
