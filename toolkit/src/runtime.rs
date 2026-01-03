@@ -1,16 +1,10 @@
 use core::fmt::{ self, Write };
 use core::cell::{ Cell };
 use core::time::{ Duration };
-use crate::collection::{ Deque, String };
+use crate::collection::deque::{ Deque };
+use crate::collection::string::{ String };
 use crate::cmd::rw::{ Queue };
 use toolkit_unsafe::{ RawBuf };
-
-const LOG_CHAN_NAME_LEN: usize =
-    option_env!("LOG_CHAN_NAME_LEN")
-    .unwrap_or(16);
-const LOG_CHAN_NAME_DEFAULT: &str =
-    option_env!("LOG_CHAN_NAME_DEFAULT")
-    .unwrap_or("void-chan");
 
 pub trait Time {
     fn time(&mut self) -> Duration;
@@ -18,10 +12,23 @@ pub trait Time {
 
 pub trait Runtime: Write + Time { }
 
-pub struct RuntimeInner <T, Q,
-const CHANLEN: usize, const CHANNR: usize, const BUFLEN: usize>
-{
-    logchanbuf: Deque<LogChan<CHANLEN>, CHANNR>,
+struct LogChan<const N: usize, const D: usize> {
+    name: String<N>,
+    data: Deque<u8, D>,
+}
+
+impl<const N: usize, const D: usize> LogChan<N, D> {
+    fn new(name: &str) -> Self {
+        Self {
+            name: String::new(name),
+            data: Deque::default(),
+        }
+    }
+}
+
+/*
+pub struct RuntimeMain <T, Q, const CHANSZ: usize, const CHANNR: usize, const BUFLEN: usize> {
+    logchanbuf: Deque<LogChan<CHANSZ>, CHANNR>,
     timer: T,
     rwqueue: Q,
     rwbufqueue: Deque<RawBuf, BUFLEN>,
@@ -47,9 +54,10 @@ RuntimeInner<T, RW, CHANLEN, CHANNR, BUFLEN>
     }
 }
 
-impl<T: Time, Q,
+impl<T, Q,
 const CHANLEN: usize, const CHANNR: usize, const BUFLEN: usize>
-RuntimeInner<T, Q, CHANLEN, CHANNR, BUFLEN> {
+RuntimeInner<T, Q, CHANLEN, CHANNR, BUFLEN>
+where T: Time {
     fn time(&mut self) -> Duration {
         self.timer.time()
     }
@@ -72,7 +80,7 @@ Write for RuntimeInner<T, Q, CHANLEN, CHANNR, BUFLEN> {
 }
 
 #[derive(Clone, Copy)]
-pub struct RuntimeCell<'a, T, Q,
+pub struct RuntimeChan<'a, T, Q,
 const CHANLEN: usize, const CHANNR: usize, const BUFLEN: usize> {
     chan: String<LOG_CHAN_NAME_LEN>,
     cell: Cell<&'a RuntimeInner<T, Q, CHANLEN, CHANNR, BUFLEN>>,
@@ -99,7 +107,7 @@ Time for RuntimeCell<'_, T, Q, CHANLEN, CHANNR, BUFLEN> {
     fn time(&mut self) -> Duration {
         let mut time = Duration::default();
         self.cell.update(|rt| {
-            time = rt.time();
+            time = *rt.time();
             rt
         });
         time
@@ -118,17 +126,4 @@ Write for RuntimeCell<'_, T, Q, CHANLEN, CHANNR, BUFLEN> {
         res
     }
 }
-
-struct LogChan<const LEN: usize> {
-    name: String<LOG_CHAN_NAME_LEN>,
-    buf: Deque<u8, LEN>,
-}
-
-impl<const LEN: usize> LogChan<LEN> {
-    fn new(name: &str) -> Self {
-        Self {
-            name: String::new(name),
-            buf: Deque::default(),
-        }
-    }
-}
+*/

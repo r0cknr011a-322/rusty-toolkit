@@ -7,9 +7,15 @@ pub struct String<const LEN: usize> {
 
 impl<const LEN: usize> String<LEN> {
     pub fn new(s: &str) -> Self {
-        let deque = Deque::default();
+        let mut deque = Deque::<u8, LEN>::default();
         for b in s.as_bytes() {
-            deque.push_back(b);
+            if deque.is_full() {
+                deque.pop_front();
+            }
+            deque.push_back(*b);
+        }
+        Self {
+            deque: deque,
         }
     }
 }

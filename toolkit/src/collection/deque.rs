@@ -40,25 +40,12 @@ impl DequeCursor {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Deque<I, const L: usize> {
     buf: [I; L],
     front: DequeCursor,
     back: DequeCursor,
 }
-
-impl<I: Clone, const LEN: usize>
-Clone for Deque<I, LEN> {
-    fn clone(&self) -> Self {
-        Self {
-            buf: self.buf.clone(),
-            front: self.front,
-            back: self.back,
-        }
-    }
-}
-
-impl<I: Copy, const LEN: usize>
-Copy for Deque<I, LEN> { }
 
 impl<I: PartialEq, const LEN: usize>
 PartialEq<Self> for Deque<I, LEN> {
@@ -78,6 +65,9 @@ PartialEq<Self> for Deque<I, LEN> {
         return true;
     }
 }
+
+impl<I: PartialEq, const LEN: usize>
+Eq for Deque<I, LEN> { }
 
 impl<I, const LEN: usize>
 Deque<I, LEN> {

@@ -23,10 +23,10 @@ pub enum Error {
 
 pub trait Queue: CmdQueue<Request=Request, Response=&Response, Error=Error> {
     fn push(&mut self, req: Request) -> Poll<Result<(), Error>> {
-        self.push(req)
+        CmdQueue::push(self, req)
     }
 
     fn pop(&mut self) -> Poll<Result<&Response, Error>> {
-        self.pop()
+        CmdQueue::pop(self)
     }
 }

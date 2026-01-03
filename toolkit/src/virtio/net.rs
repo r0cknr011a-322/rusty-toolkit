@@ -1,6 +1,6 @@
-use crate::collection::{ Deque };
 use crate::runtime::{ Runtime };
 use crate::volatile::{ VolatileBuf };
+use crate::collection::deque::{ Deque };
 use crate::cmd::{ Poll };
 use crate::cmd::rw::{ Queue, Request, Response, Error };
 use toolkit_unsafe::{ RawBuf };
@@ -27,12 +27,13 @@ NetDevDrv<RT, IO, REQNR, RSPNR, BUFLEN, DATALEN> {
     ) -> Self {
         Self {
             rt: rt, io: io,
-            reqbuf: Deque::default(), rspbuf: Deque::default(),
+            reqbuf: Deque::new(|_| Request::Noop), rspbuf: Deque::new(|_| Response::Ok),
             cmdbuf: cmdbuf, databuf: databuf,
         }
     }
 }
 
+/*
 impl<RT, IO,
 const REQNR: usize, const RSPNR: usize,
 const BUFLEN: usize, const DATALEN:usize>
@@ -46,3 +47,4 @@ where RT: Runtime, IO: VolatileBuf {
         Poll::Ready(Err(Error::Fatal))
     }
 }
+*/
