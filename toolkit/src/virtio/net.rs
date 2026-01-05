@@ -1,9 +1,8 @@
 // use crate::runtime::{ Runtime };
 // use crate::volatile::{ VolatileBuf };
 use crate::collection::deque::{ Deque };
-use crate::cmd::{ Poll };
-use crate::cmd::rw::{ Queue, Request, Response, Error };
-use toolkit_unsafe::{ RawBuf };
+use crate::cmd::{ Queue, Poll };
+use crate::cmd::rw::{ Request, Response, Error };
 
 pub struct NetDevDrv
 <RT, IO,
@@ -11,8 +10,8 @@ const REQNR: usize, const RSPNR: usize,
 const BUFLEN: usize, const DATALEN:usize> {
     rt: RT,
     io: IO,
-    reqbuf: Deque<Request, REQNR>,
-    rspbuf: Deque<Response, RSPNR>,
+    reqbuf: Request,
+    rspbuf: Response,
     cmdbuf: Deque<RawBuf, BUFLEN>,
     databuf: Deque<RawBuf, DATALEN>,
 }

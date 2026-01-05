@@ -5,6 +5,7 @@ use core::mem::{ self };
 use core::slice::{ self };
 use core::sync::atomic::{ AtomicU8, AtomicU16, AtomicU32, AtomicU64, Ordering };
 
+#[derive(Clone, Copy)]
 pub struct RawBuf {
     buf: &'static [u8],
 }
@@ -16,6 +17,10 @@ impl RawBuf {
                 slice::from_raw_parts(ptr::without_provenance(base), len)
             },
         }
+    }
+
+    pub fn addr(&self) -> usize {
+        self.buf.as_ptr().addr()
     }
 
     fn off<T>(&self, off: usize) -> *const T {

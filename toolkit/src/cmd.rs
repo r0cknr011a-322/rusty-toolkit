@@ -5,7 +5,7 @@ pub enum Poll<T> {
     Pending,
 }
 
-pub trait CmdQueue {
+pub trait Queue {
     type Request;
     type Response;
     type Error;
