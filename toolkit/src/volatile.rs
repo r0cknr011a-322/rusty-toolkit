@@ -1,6 +1,6 @@
-use toolkit_unsafe::{ RawBuf };
+use toolkit_unsafe::{ IPCByteBuf };
 
-pub trait VolatileBuf {
+pub trait VolatileByteBuf {
     fn rd8(&mut self, off: usize) -> u8;
     fn wr8(&mut self, off: usize, value: u8);
 
@@ -14,12 +14,11 @@ pub trait VolatileBuf {
     fn wr64(&mut self, off: usize, value: u64);
 }
 
-#[derive(Clone, Copy)]
-pub struct VolatileMem {
-    mem: RawBuf,
+pub struct MemVolatileByteBuf {
+    mem: IPCByteBuf,
 }
 
-impl VolatileBuf for VolatileMem {
+impl VolatileByteBuf for MemVolatileByteBuf {
     fn rd8(&mut self, off: usize) -> u8 {
         self.mem.rd8_volatile(off)
     }

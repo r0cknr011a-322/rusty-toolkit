@@ -6,17 +6,25 @@ use core::slice::{ self };
 use core::sync::atomic::{ AtomicU8, AtomicU16, AtomicU32, AtomicU64, Ordering };
 
 #[derive(Clone, Copy)]
-pub struct RawBuf {
+pub struct IPCByteBuf {
     buf: &'static [u8],
 }
 
-impl RawBuf {
+impl IPCByteBuf {
     pub fn new(base: usize, len: usize) -> Self {
         Self {
             buf: unsafe {
                 slice::from_raw_parts(ptr::without_provenance(base), len)
             },
         }
+    }
+
+    pub fn addr(&self) -> usize {
+        self.buf.as_ptr().addr()
+    }
+
+    pub fn len(&self) -> usize {
+        self.buf.len()
     }
 
     fn off<T>(&self, off: usize) -> *const T {
