@@ -1,9 +1,9 @@
-use toolkit_unsafe::{ RawBuf };
+use toolkit_unsafe::{ IPCByteBuf };
 
 #[derive(Clone, Copy)]
 pub enum Request {
-    Read(RawBuf),
-    Write(RawBuf),
+    Read(IPCByteBuf),
+    Write(IPCByteBuf),
 }
 
 #[derive(Clone, Copy)]

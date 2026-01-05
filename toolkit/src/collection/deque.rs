@@ -6,7 +6,7 @@ pub enum DequeError {
     Fatal,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct DequeCursor {
     cursor: Cursor,
     free: bool,
@@ -40,6 +40,7 @@ impl DequeCursor {
     }
 }
 
+#[derive(Debug)]
 pub struct Deque<I, const L: usize> {
     buf: [I; L],
     front: DequeCursor,
@@ -69,17 +70,17 @@ PartialEq<Self> for Deque<I, LEN> {
         let mut lfront = self.front;
         let mut rfront = other.front;
         for _ in 0..self.len() {
+            lfront.prev();
+            rfront.prev();
             if self.buf[lfront.pos()] != other.buf[rfront.pos()] {
                 return false;
             }
-            lfront.prev();
-            rfront.prev();
         }
-        return true;
+        true
     }
 }
 
-impl<I: PartialEq, const LEN: usize>
+impl<I: Eq, const LEN: usize>
 Eq for Deque<I, LEN> { }
 
 impl<I, const LEN: usize>

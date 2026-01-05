@@ -1,6 +1,6 @@
 use crate::collection::deque::{ Deque, DequeError };
 
-const DATA_LEN: usize = 13;
+const ITEMNR: usize = 13;
 
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
 struct TestItem {
@@ -20,12 +20,12 @@ impl TestItem {
 #[test]
 fn deque_push_pop() {
     // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C ]
-    let buf: [TestItem; DATA_LEN] = core::array::from_fn(
+    let buf: [TestItem; ITEMNR] = core::array::from_fn(
         |i| TestItem::new(i.try_into().unwrap())
     );
 
-    let mut deque = Deque::<TestItem, DATA_LEN>::default();
-    assert_eq!(deque.capacity(), DATA_LEN);
+    let mut deque = Deque::<TestItem, ITEMNR>::default();
+    assert_eq!(deque.capacity(), ITEMNR);
 
     assert_eq!(deque.len(), 0);
     assert_eq!(deque.get_front(), (0, true));
@@ -81,7 +81,7 @@ fn deque_push_pop() {
     //        <|
     for i in 0..8 {
         let item = deque.pop_back();
-        assert_eq!(item, Some(buf[DATA_LEN - 1 - i]));
+        assert_eq!(item, Some(buf[ITEMNR - 1 - i]));
     }
 
     assert_eq!(deque.len(), 5);
@@ -104,11 +104,11 @@ fn deque_push_pop() {
 #[test]
 fn deque_into_iter() {
     // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C ]
-    let buf: [TestItem; DATA_LEN] = core::array::from_fn(
+    let buf: [TestItem; ITEMNR] = core::array::from_fn(
         |i| TestItem::new(i.try_into().unwrap())
     );
 
-    let mut deque = Deque::<TestItem, DATA_LEN>::default();
+    let mut deque = Deque::<TestItem, ITEMNR>::default();
 
     // empty iter
     let mut iter = deque.into_iter();
@@ -154,17 +154,17 @@ fn deque_into_iter() {
     //   |>
     // [ x, B, A, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 ]
     //     <|
-    for item in &buf[1..DATA_LEN - 1] {
+    for item in &buf[1..ITEMNR - 1] {
         let res = deque.push_back(*item);
         assert_eq!(res, Ok(()));
     }
-    assert_eq!(deque.len(), DATA_LEN - 1);
+    assert_eq!(deque.len(), ITEMNR - 1);
 
     //                                      <|
     // [ x, B, A, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 ]
     //      |>
     let mut iter = deque.into_iter();
-    assert_eq!(iter.size_hint(), (DATA_LEN - 1, Some(DATA_LEN - 1)));
+    assert_eq!(iter.size_hint(), (ITEMNR - 1, Some(ITEMNR - 1)));
     assert_eq!(iter.get_front(), 12);
     assert_eq!(iter.get_back(), 1);
 
@@ -182,7 +182,7 @@ fn deque_into_iter() {
     // [ x, x, x, x, x, 7, 6, 5, 4, x, x, x, x ]
     //                  |>
     for i in 0..4 {
-        assert_eq!(iter.next_back(), Some(buf[DATA_LEN - 2 - i]));
+        assert_eq!(iter.next_back(), Some(buf[ITEMNR - 2 - i]));
     }
     assert_eq!(iter.size_hint(), (4, Some(4)));
     assert_eq!(iter.get_front(), 8);
@@ -206,9 +206,9 @@ fn deque_into_iter() {
     //   |>
     // [ C, B, A, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 ]
     //     <|
-    let res = deque.push_back(buf[DATA_LEN - 1]);
+    let res = deque.push_back(buf[ITEMNR - 1]);
     assert_eq!(res, Ok(()));
-    assert_eq!(deque.len(), DATA_LEN);
+    assert_eq!(deque.len(), ITEMNR);
 
     //                                      <|
     // [ C, B, A, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 ]
@@ -232,7 +232,7 @@ fn deque_into_iter() {
     // [ x, x, x, x, x, x, 6, 5, 4, x, x, x, x ]
     //                     |>
     for i in 0..6 {
-        assert_eq!(iter.next_back(), Some(buf[DATA_LEN - 1 - i]));
+        assert_eq!(iter.next_back(), Some(buf[ITEMNR - 1 - i]));
     }
     assert_eq!(iter.size_hint(), (3, Some(3)));
     assert_eq!(iter.get_front(), 8);
@@ -257,15 +257,15 @@ fn deque_into_iter() {
 #[test]
 fn deque_from_iter() {
     // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C ]
-    let buf: [TestItem; DATA_LEN] = core::array::from_fn(
+    let buf: [TestItem; ITEMNR] = core::array::from_fn(
         |i| TestItem::new(i.try_into().unwrap())
     );
 
-    let deque: Deque<TestItem, DATA_LEN> = buf
+    let deque: Deque<TestItem, ITEMNR> = buf
         .into_iter()
         .filter(|e| e.data % 2 == 0)
         .collect();
-    assert_eq!(deque.capacity(), DATA_LEN);
+    assert_eq!(deque.capacity(), ITEMNR);
     assert_eq!(deque.len(), 7);
     assert_eq!(deque.get_front(), (0, true));
     assert_eq!(deque.get_back(), (5, true));
@@ -274,41 +274,41 @@ fn deque_from_iter() {
 #[test]
 fn deque_equals() {
     // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C ]
-    let buf: [TestItem; DATA_LEN] = core::array::from_fn(|i|
+    let buf: [TestItem; ITEMNR] = core::array::from_fn(|i|
         TestItem::new(i.try_into().unwrap())
     );
 
-    let ldeque = Deque::<TestItem, 11>::default();
+    let mut ldeque = Deque::<TestItem, ITEMNR>::default();
     for i in 0..4 {
-        ldeque.push_front(buf[3 - i]);
+        ldeque.push_front(buf[4 + i]);
     }
     for i in 0..4 {
-        ldeque.push_back(buf[4 + i]);
+        ldeque.push_back(buf[3 - i]);
     }
     //               |>
-    // [ 3, 2, 1, 0, x, x, x, 7, 6, 5, 4 ]
-    //                    <|
+    // [ 4, 5, 6, 7, x, x, x, x, x, 0, 1, 2, 3 ]
+    //                          <|
     assert_eq!(ldeque.len(), 8);
 
-    let rdeque = Deque::<TestItem, 15>::default();
-    for i in 0..DATA_LEN {
+    let mut rdeque = Deque::<TestItem, ITEMNR>::default();
+    for i in 0..ITEMNR {
         rdeque.push_front(buf[i]);
     }
 
     assert_ne!(ldeque, rdeque);
 
-    for i in 0..5 {
+    for i in 0..2 {
         rdeque.pop_back();
     }
-    for i in 0..8 {
+    for i in 0..ITEMNR {
         rdeque.pop_front();
     }
     for i in 0..8 {
         rdeque.push_front(buf[i]);
     }
-    //                                          |>
-    // [ x, x, x, x, x, 0, 1, 2, 3, 4, 5, 6, 7, x, x, x ]
-    //              <|
+    //                                 |>
+    // [ x, x, 0, 1, 2, 3, 4, 5, 6, 7, x, x, x ]
+    //     <|
     assert_eq!(rdeque.len(), 8);
 
     assert_eq!(ldeque, rdeque);
