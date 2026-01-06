@@ -1,40 +1,50 @@
+use crate::collection::deque::{ Deque };
 use crate::cmd::{ Queue, Poll };
-use crate::cmd::rw::{ Request, Response, Error };
+use crate::cmd::rw::{ Request as RWReq, Response as RWRsp, Error as RWErr };
 use toolkit_unsafe::{ IPCByteBuf };
 
 pub struct IPQueue
-<Q> {
+<Q, const CMDNR: usize> {
 // <Q, const BUFNR: usize, const RWNR: usize, const WR: usize, const RD: usize> {
     rwqueue: Q,
-    // ipcbuf: Deque<IPCByteBuf, BUFNR>,
+    reqbuf: Deque<RWReq, CMDNR>,
+    rspbuf: Deque<RWRsp, CMDNR>,
     // wrbuf: Deque<Deque<u8, WR>, RWNR>,
     // rdbuf: Deque<Deque<u8, RD>, RWNR>,
 }
 
-impl<Q>
+impl<Q, const BUFNR: usize>
 // impl<Q, const BUFNR: usize, const RWNR: usize, const WR: usize, const RD: usize>
-IPQueue<Q> {
+IPQueue<Q, BUFNR> {
     pub fn new(rwqueue: Q) -> Self {
         Self {
             rwqueue: rwqueue,
+            reqbuf: Deque::new(|_| RWReq::Read(IPCByteBuf::new(0, 0))),
+            rspbuf: Deque::new(|_| RWRsp::Ok),
         }
     }
 }
 
 
-impl<Q>
+impl<Q, const CMDNR: usize, Req: Iterator<Item=RWReq>>
 // impl<Q, const BUFNR: usize, const RWNR: usize, const WR: usize, const RD: usize>
-Queue for IPQueue<Q>
-where Q: Queue<Request=Request, Response=Response, Error=Error> {
-    type Request = Request;
-    type Response = Response;
-    type Error = Error;
+Queue for IPQueue<Q, CMDNR>
+where Q: Queue<Shit> {
+    type Response = Deque<RWRsp, CMDNR>;
+    type Error = RWErr;
 
-    fn push(&mut self, _req: Request) -> Poll<Result<(), Error>> {
+    fn push(&mut self, reqbuf: Req) -> Poll<Result<(), Self::Error>> {
+        for req in reqbuf {
+            if let RWReq::Read(buf) = req {
+                if buf.len() < 128 {
+                    return Poll::Ready(Err(RWErr::Fatal));
+                }
+            }
+        }
         Poll::Ready(Ok(()))
     }
 
-    fn pop(&mut self) -> Poll<Result<Response, Error>> {
-        Poll::Ready(Ok(Response::Ok))
+    fn pop(&mut self) -> Poll<Result<Self::Response, Self::Error>> {
+        Poll::Ready(Ok(self.rspbuf))
     }
 }
