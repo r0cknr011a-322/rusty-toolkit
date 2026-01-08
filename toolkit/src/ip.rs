@@ -1,34 +1,38 @@
 use crate::collection::deque::{ Deque };
 use crate::cmd::{ Queue, Poll };
-use crate::cmd::rw::{ Request as RWReq, Response as RWRsp, Error as RWErr };
+use crate::cmd::rw::{ Request, Response, Error };
 use toolkit_unsafe::{ IPCByteBuf };
 
-pub struct IPQueue
-<Q, const CMDNR: usize> {
-// <Q, const BUFNR: usize, const RWNR: usize, const WR: usize, const RD: usize> {
-    rwqueue: Q,
-    reqbuf: Deque<RWReq, CMDNR>,
-    rspbuf: Deque<RWRsp, CMDNR>,
-    // wrbuf: Deque<Deque<u8, WR>, RWNR>,
-    // rdbuf: Deque<Deque<u8, RD>, RWNR>,
+pub struct IPRefQueue
+<OQ, const OUTLEN: usize, IQ, const INLEN: usize>
+{
+    outq: OQ,
+    outreq: Deque<IPCByteBuf, REQNR>,
+    outrsp: Deque<Response, RSPNR>,
+    inq: IQ,
+    rspbuf: Deque<IPCByteBuf, NR>,
 }
 
-impl<Q, const BUFNR: usize>
-// impl<Q, const BUFNR: usize, const RWNR: usize, const WR: usize, const RD: usize>
-IPQueue<Q, BUFNR> {
+impl
+<ORQ, IRQ, OBQ, IBQ,
+const REQNR: usize, const RSPNR: usize,
+const WRLEN: usize, const RDLEN: usize>
+IPQueue<ORQ, IRQ, OBQ, IBQ, REQNR, RSPNR, WRLEN, RDLEN> {
     pub fn new(rwqueue: Q) -> Self {
         Self {
             rwqueue: rwqueue,
             reqbuf: Deque::new(|_| RWReq::Read(IPCByteBuf::new(0, 0))),
             rspbuf: Deque::new(|_| RWRsp::Ok),
+            wrbuf: Deque::default(), rdbuf: Deque::default(),
         }
     }
 }
 
 
-impl<Q, const CMDNR: usize, Req: Iterator<Item=RWReq>>
-// impl<Q, const BUFNR: usize, const RWNR: usize, const WR: usize, const RD: usize>
-Queue for IPQueue<Q, CMDNR>
+impl<Q,
+const REQNR: usize, const RSPNR: usize,
+const WRLEN: usize, const RDLEN: usize>
+BufRefQueue for IPQueue<Q, REQNR, RSPNR, WRLEN, RDLEN> {
 where Q: Queue<Shit> {
     type Response = Deque<RWRsp, CMDNR>;
     type Error = RWErr;
