@@ -351,22 +351,8 @@ impl Iter {
 }
 
 /*
- * owning iterator
+ * iterator
  */
-impl<I: Copy, const LEN: usize> IntoIterator for Deque<I, LEN> {
-    type Item = I;
-    type IntoIter = DequeIter<I, LEN>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        DequeIter {
-            iter: self.iter(),
-            deque: self,
-        }
-    }
-}
-
-
-
 pub struct DequeIter<I, const LEN: usize> {
     deque: Deque<I, LEN>,
     iter: Iter,
@@ -409,7 +395,22 @@ impl<I: Copy, const L: usize> DoubleEndedIterator for DequeIter<I, L> {
 impl<I: Copy, const L: usize> ExactSizeIterator for DequeIter<I, L> { }
 
 /*
- * reference iterator
+ * owned into iterator
+ */
+impl<I: Copy, const LEN: usize> IntoIterator for Deque<I, LEN> {
+    type Item = I;
+    type IntoIter = DequeIter<I, LEN>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        DequeIter {
+            iter: self.iter(),
+            deque: self,
+        }
+    }
+}
+
+/*
+ * reference into iterator
  */
 impl<'a, I, const L: usize> IntoIterator for &'a Deque<I, L> {
     type Item = &'a I;
