@@ -1,8 +1,7 @@
 use core::fmt::{ self, Write };
 use core::cell::{ Cell };
 use core::time::{ Duration };
-use crate::collection::deque::{ Deque };
-use crate::collection::string::{ String };
+use crate::collection::deque::{ Deque, DequeIter };
 use crate::cmd::{ Queue };
 use toolkit_unsafe::{ IPCByteBuf };
 
@@ -12,15 +11,16 @@ pub trait Time {
 
 pub trait Runtime: Write + Time { }
 
+#[derive(Clone, Copy)]
 struct LogChan<const N: usize, const D: usize> {
-    name: String<N>,
+    name: &'static str,
     data: Deque<u8, D>,
 }
 
 impl<const N: usize, const D: usize> LogChan<N, D> {
-    fn new(name: &str) -> Self {
+    fn new(name: &'static str) -> Self {
         Self {
-            name: String::new(name),
+            name: name,
             data: Deque::default(),
         }
     }
@@ -41,14 +41,9 @@ Write for LogChan<N, D> {
     }
 }
 
+#[derive(Clone, Copy)]
 struct LogChanBuf<const CHN: usize, const CHL: usize, const CHNR: usize> {
     deque: Deque<LogChan<CHN, CHL>, CHNR>,
-}
-
-impl<const CHN: usize, const CHL: usize, const CHNR: usize>
-IntoIterator for LogChanBuf<CHN, CHL, CHNR> {
-    type Item = LogChan<CHN, CHL>;
-    type IntoIter = DequeIter<LogChan<>CHNR>;
 }
 
 impl<const CHN: usize, const CHL: usize, const CHNR: usize>
@@ -60,6 +55,16 @@ LogChanBuf<CHN, CHL, CHNR> {
     }
 }
 
+impl<const CHN: usize, const CHL: usize, const CHNR: usize>
+IntoIterator for LogChanBuf<CHN, CHL, CHNR> {
+    type Item = LogChan<CHN, CHL>;
+    type IntoIter = DequeIter<LogChan<CHN, CHL>, CHNR>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.deque.into_iter()
+    }
+}
+
 /*
  * runtime channel
  */
@@ -67,7 +72,7 @@ LogChanBuf<CHN, CHL, CHNR> {
 pub struct RuntimeChan
 <'a, T, Q, const BUFNR: usize,
 const CHN: usize, const CHL: usize, const CHNR: usize> {
-    name: String<CHN>,
+    name: &'static str,
     rt: &'a RuntimeMain<T, Q, BUFNR, CHN, CHL, CHNR>,
 }
 
@@ -100,8 +105,7 @@ RuntimeMain<T, Q, BUFNR, CHN, CHL, CHNR> {
         }
     }
 
-    pub fn chan(&self, name: &'static str) ->
-        Option<RuntimeChan<T, Q, BUFNR, CHN, CHL, CHNR>> {
+    pub fn chan(&self, name: &str) -> Option<RuntimeChan<T, Q, BUFNR, CHN, CHL, CHNR>> {
         for chan in self.logchanbuf {
             if chan.name == name {
                 return None; 
