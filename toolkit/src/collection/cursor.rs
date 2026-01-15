@@ -1,14 +1,21 @@
-#[derive(Clone, Copy, Debug)]
-pub struct Cursor {
-    pos: usize,
-    max: usize,
-    inc: bool,
+#[derive(Clone, Copy)]
+pub enum Dir {
+    Inc,
+    Dec,
 }
 
-impl Cursor {
-    pub fn new(pos: usize, len: usize, inc: bool) -> Self {
+#[derive(Clone, Copy, Debug)]
+pub struct Cursor<const MAX: usize, const INC: bool> {
+    pos: usize,
+}
+
+impl<const MAX: usize, const INC: bool> Cursor<MAX, INC> {
+    pub fn new(mut pos: usize) -> Self {
+        if pos >= MAX {
+            pos = MAX - 1;
+        }
         Self {
-            pos: pos, max: len - 1, inc: inc,
+            pos: pos,
         }
     }
 
@@ -16,29 +23,57 @@ impl Cursor {
         self.pos
     }
 
+    fn at_edge(&self, movedir: Dir) -> bool {
+        match INC {
+            true => match movedir {
+                Dir::Inc => self.pos + 1 == MAX,
+                Dir::Dec => self.pos - 1 == 0,
+            },
+            false => match movedir {
+                Dir::Inc => self.pos - 1 == 0,
+                Dir::Dec => self.pos + 1 == MAX,
+            }
+        }
+    }
+
+    fn overflow(&self, movedir: Dir) -> usize {
+        match INC {
+            true => match movedir {
+                Dir::Inc => 0,
+                Dir::Dec => MAX - 1,
+            },
+            false => match movedir {
+                Dir::Inc => MAX - 1,
+                Dir::Dec => 0,
+            }
+        }
+    }
+
+    fn forward(&self, movedir: Dir) -> usize {
+        match INC {
+            true => match movedir {
+                Dir::Inc => self.pos + 1,
+                Dir::Dec => self.pos - 1,
+            },
+            false => match movedir {
+                Dir::Inc => self.pos - 1,
+                Dir::Dec => self.pos + 1,
+            }
+        }
+    }
+
+    fn do_move(&mut self, dir: Dir) {
+        self.pos = match self.at_edge(dir) {
+            true => self.overflow(dir),
+            false => self.forward(dir),
+        }
+    }
+
     pub fn next(&mut self) {
-        self.pos = match self.inc {
-            true => match self.pos == self.max {
-                true => 0,
-                false => self.pos + 1,
-            },
-            false => match self.pos == 0 {
-                true => self.max,
-                false => self.pos - 1,
-            },
-        };
+        self.do_move(Dir::Inc);
     }
 
     pub fn prev(&mut self) {
-        self.pos = match self.inc {
-            true => match self.pos == 0 {
-                true => self.max,
-                false => self.pos - 1,
-            },
-            false => match self.pos == self.max {
-                true => 0,
-                false => self.pos + 1,
-            },
-        };
+        self.do_move(Dir::Dec);
     }
 }

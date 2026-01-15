@@ -1,0 +1,8 @@
+[package]
+name = "stm32f4"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+toolkit = { path = "../../../rusty-scrapyard/toolkit" }
+toolkit-unsafe = { path = "../../../rusty-scrapyard/unsafe" }

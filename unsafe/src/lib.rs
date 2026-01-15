@@ -3,7 +3,19 @@
 use core::ptr::{ self };
 use core::mem::{ self };
 use core::slice::{ self };
-use core::sync::atomic::{ AtomicU8, AtomicU16, AtomicU32, AtomicU64, Ordering };
+use core::sync::atomic::{ Ordering };
+
+#[cfg(target_has_atomic = "8")]
+use core::sync::atomic::{ AtomicU8 };
+
+#[cfg(target_has_atomic = "16")]
+use core::sync::atomic::{ AtomicU16 };
+
+#[cfg(target_has_atomic = "32")]
+use core::sync::atomic::{ AtomicU32 };
+
+#[cfg(target_has_atomic = "64")]
+use core::sync::atomic::{ AtomicU64 };
 
 #[derive(Clone, Copy)]
 pub struct IPCByteBuf {
@@ -11,10 +23,10 @@ pub struct IPCByteBuf {
 }
 
 impl IPCByteBuf {
-    pub fn new(base: usize, len: usize) -> Self {
+    pub fn new(addr: usize, len: usize) -> Self {
         Self {
             buf: unsafe {
-                slice::from_raw_parts(ptr::without_provenance(base), len)
+                slice::from_raw_parts(ptr::without_provenance(addr), len)
             },
         }
     }
