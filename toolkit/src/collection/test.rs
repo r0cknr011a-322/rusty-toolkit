@@ -115,7 +115,6 @@ fn queue_push_pop() {
     assert_eq!(deque.tail(), 0);
 }
 
-/*
 #[test]
 fn deque_into_iter() {
     // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C ]
@@ -127,8 +126,8 @@ fn deque_into_iter() {
 
     // empty iter
     let mut iter = deque.into_iter();
-    assert_eq!(iter.get_front(), 12);
-    assert_eq!(iter.get_back(), 12);
+    assert_eq!(iter.head(), 0);
+    assert_eq!(iter.tail(), 0);
     assert_eq!(iter.size_hint(), (0, Some(0)));
 
     assert_eq!(iter.next(), None);
@@ -136,17 +135,14 @@ fn deque_into_iter() {
     assert_eq!(iter.next_back(), None);
     assert_eq!(iter.next_back(), None);
 
-    //   |>
-    // [ x, x, x, x, x, x, x, x, x, x, x, x, 0 ]
-    //                                   <|
-    let res = deque.push_back(buf[0]);
+    deque.push(buf[0]);
 
-    //                                      <|
-    // [ x, x, x, x, x, x, x, x, x, x, x, x, 0 ]
-    //                                       |>
+    //      |>
+    // [ 0, x, x, x, x, x, x, x, x, x, x, x, x ]
+    //   |>
     let mut iter = deque.into_iter();
-    assert_eq!(iter.get_front(), 12);
-    assert_eq!(iter.get_back(), 12);
+    assert_eq!(iter.head(), 0);
+    assert_eq!(iter.tail(), 1);
     assert_eq!(iter.size_hint(), (1, Some(1)));
 
     assert_eq!(iter.next(), Some(buf[0]));
@@ -157,111 +153,96 @@ fn deque_into_iter() {
     assert_eq!(iter.next_back(), None);
 
     //                                      <|
-    // [ x, x, x, x, x, x, x, x, x, x, x, x, 0 ]
-    //                                       |>
-    let mut iter = deque.into_iter();
-    assert_eq!(iter.next_back(), Some(buf[0]));
-    assert_eq!(iter.next(), None);
-    assert_eq!(iter.next(), None);
-    assert_eq!(iter.next_back(), None);
-    assert_eq!(iter.next_back(), None);
-
+    // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, x ]
     //   |>
-    // [ x, B, A, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 ]
-    //     <|
     for item in &buf[1..ITEMNR - 1] {
-        let res = deque.push_back(*item);
-        assert_eq!(res, Ok(()));
+        deque.push(*item);
     }
     assert_eq!(deque.len(), ITEMNR - 1);
 
-    //                                      <|
-    // [ x, B, A, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 ]
-    //      |>
     let mut iter = deque.into_iter();
     assert_eq!(iter.size_hint(), (ITEMNR - 1, Some(ITEMNR - 1)));
-    assert_eq!(iter.get_front(), 12);
-    assert_eq!(iter.get_back(), 1);
+    assert_eq!(iter.head(), 0);
+    assert_eq!(iter.tail(), 12);
 
-    //                          <|
-    // [ x, B, A, 9, 8, 7, 6, 5, 4, x, x, x, x ]
-    //      |>
+    //                                      <|
+    // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, x ]
+    //               |>
     for i in 0..4 {
         assert_eq!(iter.next(), Some(buf[0 + i]));
     }
     assert_eq!(iter.size_hint(), (8, Some(8)));
-    assert_eq!(iter.get_front(), 8);
-    assert_eq!(iter.get_back(), 1);
+    assert_eq!(iter.head(), 4);
+    assert_eq!(iter.tail(), 12);
 
     //                          <|
-    // [ x, x, x, x, x, 7, 6, 5, 4, x, x, x, x ]
-    //                  |>
+    // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, x ]
+    //               |>
     for i in 0..4 {
         assert_eq!(iter.next_back(), Some(buf[ITEMNR - 2 - i]));
     }
     assert_eq!(iter.size_hint(), (4, Some(4)));
-    assert_eq!(iter.get_front(), 8);
-    assert_eq!(iter.get_back(), 5);
+    assert_eq!(iter.head(), 4);
+    assert_eq!(iter.tail(), 8);
 
-    //                 <|
-    // [ x, x, x, x, x, x, x, x, x, x, x, x, x ]
-    //                  |>
+    //                          <|
+    // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, x ]
+    //                           |>
     for i in 0..4 {
         assert_eq!(iter.next(), Some(buf[4 + i]));
     }
     assert_eq!(iter.size_hint(), (0, Some(0)));
-    assert_eq!(iter.get_front(), 5);
-    assert_eq!(iter.get_back(), 5);
+    assert_eq!(iter.head(), 8);
+    assert_eq!(iter.tail(), 8);
 
     assert_eq!(iter.next(), None);
     assert_eq!(iter.next(), None);
     assert_eq!(iter.next_back(), None);
     assert_eq!(iter.next_back(), None);
 
+    //                                       |>
+    // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C ]
     //   |>
-    // [ C, B, A, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 ]
-    //     <|
-    let res = deque.push_back(buf[ITEMNR - 1]);
-    assert_eq!(res, Ok(()));
+    deque.push(buf[ITEMNR - 1]);
     assert_eq!(deque.len(), ITEMNR);
 
     //                                      <|
-    // [ C, B, A, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 ]
+    // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C ]
     //   |>
     let mut iter = deque.into_iter();
     assert_eq!(iter.size_hint(), (13, Some(13)));
-    assert_eq!(iter.get_front(), 12);
-    assert_eq!(iter.get_back(), 0);
+    assert_eq!(iter.head(), 0);
+    assert_eq!(iter.tail(), 0);
 
-    //                          <|
-    // [ C, B, A, 9, 8, 7, 6, 5, 4, x, x, x, x ]
-    //   |>
+    //                                      <|
+    // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C ]
+    //               |>
     for i in 0..4 {
         assert_eq!(iter.next(), Some(buf[0 + i]));
     }
     assert_eq!(iter.size_hint(), (9, Some(9)));
-    assert_eq!(iter.get_front(), 8);
-    assert_eq!(iter.get_back(), 0);
+    assert_eq!(iter.head(), 4);
+    assert_eq!(iter.tail(), 0);
 
-    //                          <|
-    // [ x, x, x, x, x, x, 6, 5, 4, x, x, x, x ]
-    //                     |>
+    //                       <|
+    // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C ]
+    //               |>
     for i in 0..6 {
         assert_eq!(iter.next_back(), Some(buf[ITEMNR - 1 - i]));
     }
     assert_eq!(iter.size_hint(), (3, Some(3)));
-    assert_eq!(iter.get_front(), 8);
-    assert_eq!(iter.get_back(), 6);
+    assert_eq!(iter.head(), 4);
+    assert_eq!(iter.tail(), 7);
 
-    //                    <|
-    // [ x, x, x, x, x, x, x, x, x, x, x, x, x ]
-    //                     |>
+    //                       <|
+    // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C ]
+    //                        |>
     for i in 0..3 {
         assert_eq!(iter.next(), Some(buf[4 + i]));
     }
     assert_eq!(iter.size_hint(), (0, Some(0)));
-    assert_eq!(iter.get_front(), 6);
-    assert_eq!(iter.get_back(), 6);
+    assert_eq!(iter.head(), 7);
+    assert_eq!(iter.tail(), 7);
 
     assert_eq!(iter.next(), None);
     assert_eq!(iter.next(), None);
@@ -269,6 +250,7 @@ fn deque_into_iter() {
     assert_eq!(iter.next_back(), None);
 }
 
+/*
 #[test]
 fn deque_from_iter() {
     // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C ]
@@ -282,8 +264,8 @@ fn deque_from_iter() {
         .collect();
     assert_eq!(deque.capacity(), ITEMNR);
     assert_eq!(deque.len(), 7);
-    assert_eq!(deque.get_front(), (0, true));
-    assert_eq!(deque.get_back(), (5, true));
+    assert_eq!(deque.head(), 0);
+    assert_eq!(deque.tail(), 5);
 }
 
 #[test]
