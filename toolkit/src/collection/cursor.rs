@@ -26,12 +26,12 @@ impl<const MAX: usize, const INC: bool> Cursor<MAX, INC> {
     fn at_edge(&self, movedir: Dir) -> bool {
         match INC {
             true => match movedir {
-                Dir::Inc => self.pos + 1 == MAX,
-                Dir::Dec => self.pos - 1 == 0,
+                Dir::Inc => self.pos == MAX - 1,
+                Dir::Dec => self.pos == 0,
             },
             false => match movedir {
-                Dir::Inc => self.pos - 1 == 0,
-                Dir::Dec => self.pos + 1 == MAX,
+                Dir::Inc => self.pos == 0,
+                Dir::Dec => self.pos == MAX - 1,
             }
         }
     }

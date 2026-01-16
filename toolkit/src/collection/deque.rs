@@ -97,15 +97,26 @@ Deque<I, LEN> {
 
     fn slice_ranges(&self) -> (Range<usize>, Range<usize>) {
         if self.head.pos() == self.tail.pos() && !self.full {
-            return (Range { start: 0, end: 0 }, Range { start: 0, end: 0 });
-        }
-        if self.tail.pos() < self.head.pos() {
             return (
-                Range { start: self.head.pos(), end: LEN },
-                Range { start: 0, end: self.tail.pos() }
+                Range { start: 0, end: 0 },
+                Range { start: 0, end: 0 },
             );
         }
-        (Range { start: self.head.pos(), end: self.tail.pos() }, Range { start: 0, end: 0 })
+        if self.head.pos() < self.tail.pos() {
+            return (
+                Range { start: self.head.pos(), end: self.tail.pos() },
+                Range { start: 0, end: 0 },
+            );
+        }
+        return (
+            Range { start: self.head.pos(), end: LEN },
+            Range { start: 0, end: self.tail.pos() },
+        );
+    }
+
+    pub fn len(&self) -> usize {
+        let (first, second) = self.slice_ranges();
+        first.len() + second.len()
     }
 
     fn as_slices(&self) -> (&[I], &[I]) {
@@ -114,13 +125,10 @@ Deque<I, LEN> {
     }
 
     fn as_mut_slices(&mut self) -> (&mut [I], &mut [I]) {
-        let (first, second) = self.slice_ranges();
-        (&mut self.buf[first], &mut self.buf[second])
-    }
-
-    pub fn len(&self) -> usize {
-        let (first, second) = self.slice_ranges();
-        first.len() + second.len()
+        let (left, right) = self.slice_ranges();
+        let (left_left, left_right) = self.buf.split_at_mut(left.end);
+        let (right_left, right_right) = left_right.split_at_mut(right.start);
+        (left_left, right_right)
     }
 
     pub fn is_full(&self) -> bool {
@@ -133,17 +141,6 @@ Deque<I, LEN> {
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
-    }
-
-    pub fn push(&mut self, item: I) {
-        if self.is_full() {
-            return;
-        }
-        self.buf[self.tail.pos()] = item;
-        self.tail.next();
-        if self.tail.pos() == self.head.pos() {
-            self.full = true;
-        }
     }
 
     /*
@@ -181,10 +178,10 @@ Deque<I, LEN> {
     }
     */
 
-    pub fn iter_mut(&mut self) -> DequeMutRefIter<I, LEN> {
+    pub fn iter_mut(&mut self) -> DequeMutRefIter<I> {
         let (first, second) = self.as_mut_slices();
         DequeMutRefIter {
-            first: first, second: second,
+            first: first.iter_mut(), second: second.iter_mut(),
         }
     }
 }
@@ -192,11 +189,26 @@ Deque<I, LEN> {
 impl<I, const L: usize>
 Deque<I, L>
 where I: Copy {
+    pub fn push(&mut self, item: I) {
+        if self.is_full() {
+            return;
+        }
+        self.buf[self.tail.pos()] = item;
+        self.tail.next();
+        if self.tail.pos() == self.head.pos() {
+            self.full = true;
+        }
+    }
+
+
     pub fn pop(&mut self) -> Option<I> {
         if self.is_empty() {
             return None;
         }
         let item = self.buf[self.head.pos()];
+        if self.head.pos() == self.tail.pos() {
+            self.full = false;
+        }
         self.head.next();
         Some(item)
     }
@@ -399,12 +411,14 @@ impl<'a, I, const LEN: usize> DoubleEndedIterator for DequeRefIter<'a, I, LEN> {
         Some(&self.deque.buf[idx])
     }
 }
+*/
 
-pub struct DequeMutRefIter<'a, I, const LEN: usize> {
-    deque: &'a mut Deque<I, LEN>,
-    iter: Iter,
+pub struct DequeMutRefIter<'a, I> {
+    first: IterMut<'a, I>,
+    second: IterMut<'a, I>,
 }
 
+/*
 impl<'a, I, const LEN: usize> ExactSizeIterator for DequeMutRefIter<'a, I, LEN> { }
 
 impl<'a, I, const LEN: usize> FusedIterator for DequeMutRefIter<'a, I, LEN> { }
