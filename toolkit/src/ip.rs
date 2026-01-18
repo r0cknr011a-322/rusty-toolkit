@@ -1,40 +1,59 @@
+use crate::collection::deque::{ Deque };
 use crate::cmd::{ Queue, Poll };
-use crate::cmd::rw::{ Request, Response, Error };
-use toolkit_unsafe::{ IPCByteBuf };
+use crate::cmd::rw::{ Response, Error };
 
-pub struct IPQueue
-<Q> {
-// <Q, const BUFNR: usize, const RWNR: usize, const WR: usize, const RD: usize> {
-    rwqueue: Q,
-    // ipcbuf: Deque<IPCByteBuf, BUFNR>,
-    // wrbuf: Deque<Deque<u8, WR>, RWNR>,
-    // rdbuf: Deque<Deque<u8, RD>, RWNR>,
+struct IPCBufQueue<Q, const REQNR: usize, const RSPNR: usize> {
+    queue: Q,
+    // reqbuf: Deque<IPCByteBuf, REQNR>,
+    rspbuf: Deque<Response, RSPNR>,
 }
 
-impl<Q>
-// impl<Q, const BUFNR: usize, const RWNR: usize, const WR: usize, const RD: usize>
-IPQueue<Q> {
-    pub fn new(rwqueue: Q) -> Self {
+impl<Q, const REQNR: usize, const RSPNR: usize>
+IPCBufQueue<Q, REQNR, RSPNR> {
+    fn new(queue: Q) -> Self {
         Self {
-            rwqueue: rwqueue,
+            queue: queue,
+            // reqbuf: Deque::new(|_| IPCByteBuf::new(0, 0)),
+            rspbuf: Deque::new(|_| Response::Ok),
         }
     }
 }
 
+/*
+ * send queue
+ */
+pub struct SendIPCBufQueue<Q, const REQNR: usize, const RSPNR: usize> {
+    queue: IPCBufQueue<Q, REQNR, RSPNR>,
+}
 
-impl<Q>
-// impl<Q, const BUFNR: usize, const RWNR: usize, const WR: usize, const RD: usize>
-Queue for IPQueue<Q>
-where Q: Queue<Request=Request, Response=Response, Error=Error> {
-    type Request = Request;
+impl<Q, const REQNR: usize, const RSPNR: usize>
+SendIPCBufQueue<Q, REQNR, RSPNR> {
+    pub fn new(queue: Q) -> Self {
+        Self {
+            queue: IPCBufQueue::new(queue),
+        }
+    }
+}
+
+impl<Q, const REQNR: usize, const RSPNR: usize>
+Queue for SendIPCBufQueue<Q, REQNR, RSPNR>
+where Q: Queue<Request=usize, Response=Response, Error=Error> {
+    type Request = usize;
     type Response = Response;
     type Error = Error;
 
-    fn push(&mut self, _req: Request) -> Poll<Result<(), Error>> {
-        Poll::Ready(Ok(()))
+    fn push(&mut self, _req: usize) -> Poll<Result<(), Error>> {
+        Poll::Ready(Err(Error::Fatal))
     }
 
     fn pop(&mut self) -> Poll<Result<Response, Error>> {
-        Poll::Ready(Ok(Response::Ok))
+        Poll::Ready(Err(Error::Fatal))
     }
+}
+
+/*
+ * recv queue
+ */
+pub struct RecvIPCBufQueue<Q, const REQNR: usize, const RSPNR: usize> {
+    queue: IPCBufQueue<Q, REQNR, RSPNR>,
 }

@@ -3,9 +3,9 @@
 
 use core::panic::{ PanicInfo };
 use core::fmt::{ Write };
-use toolkit::runtime::{ Runtime, RuntimeInner };
+use toolkit::runtime::{ RuntimeMain };
 use toolkit::cmd::{ Buf, Poll, Error };
-use toolkit_unsafe::{ RawBuf };
+use toolkit_unsafe::{ IPCByteBuf };
 
 use core::arch::global_asm;
 global_asm!(include_str!("trap.S"));

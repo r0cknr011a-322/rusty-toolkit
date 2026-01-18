@@ -1,143 +1,136 @@
 use core::fmt::{ self, Write };
-// use core::cell::{ Cell };
+use core::cell::{ Cell };
 use core::time::{ Duration };
-use crate::collection::deque::{ Deque };
-use crate::collection::string::{ String };
-// use crate::cmd::rw::{ Queue };
-// use toolkit_unsafe::{ RawBuf };
+use crate::collection::deque::{ Deque, DequeRefIter, DequeMutRefIter };
+use crate::cmd::{ Queue };
+use toolkit_unsafe::{ IPCByteBuf };
 
 pub trait Time {
     fn time(&mut self) -> Duration;
 }
 
-pub trait Runtime: Write + Time { }
-
-struct LogChan<const N: usize, const D: usize> {
-    name: String<N>,
-    data: Deque<u8, D>,
+pub trait Runtime: Time {
+    fn logbuf(&mut self) -> impl Iterator<Item=&mut impl Write>;
+    fn ipcbuf(&mut self) -> impl Iterator<Item=&mut IPCByteBuf>;
 }
 
-impl<const N: usize, const D: usize> LogChan<N, D> {
-    fn new(name: &str) -> Self {
+/*
+ * runtime reference
+ */
+#[derive(Clone, Copy)]
+struct RuntimeRef<'a, T, Q, const BUFNR: usize, const CHL: usize, const CHNR: usize> {
+    rt: &'a RuntimeMain<'a, T, Q, BUFNR, CHL, CHNR>,
+}
+
+impl<'a, T, Q, const BUFNR: usize, const CHL: usize, const CHNR: usize>
+Time for RuntimeRef<'a, T, Q, BUFNR, CHL, CHNR>
+where T: Time {
+    fn time(&mut self) -> Duration {
+        let mut timer = self.rt.timer.take().unwrap();
+        let time = timer.time();
+        self.rt.timer.set(Some(timer));
+        time
+    }
+}
+
+impl<'a, T, Q, const BUFNR: usize, const CHL: usize, const CHNR: usize>
+Runtime for RuntimeRef<'a, T, Q, BUFNR, CHL, CHNR>
+where T: Time {
+    fn logbuf(&self) -> impl Iterator<Item=&mut impl Write> {
+        let mut buf = self.rt.logbufbuf.take();
+        let logbuf = buf.iter_mut();
+        self.rt.logbufbuf.set(buf);
+        logbuf
+    }
+}
+
+/*
+ * runtime
+ */
+pub struct RuntimeMain<'a, T, Q, const BUFNR: usize, const CHL: usize, const CHNR: usize> {
+    timer: Cell<Option<T>>,
+    queue: Cell<Q>,
+    logbufbuf: Cell<LogBufBuf<CHL, CHNR>>,
+    ipcbufbuf: Cell<Deque<IPCByteBuf<'a>, BUFNR>>,
+}
+
+impl<'a, T, Q, const BUFNR: usize, const CHL: usize, const CHNR: usize>
+RuntimeMain<'a, T, Q, BUFNR, CHL, CHNR> {
+    pub fn new<B: FnMut(usize) -> IPCByteBuf<'a>>(timer: T, queue: Q, mut bufctr: B) -> Self {
         Self {
-            name: String::new(name),
+            timer: Cell::new(Some(timer)), queue: Cell::new(queue),
+            ipcbufbuf: Cell::new(Deque::new(|idx| bufctr(idx))),
+            logbufbuf: Cell::new(LogBufBuf::default()),
+        }
+    }
+}
+
+impl<'a, T, Q, const BUFNR: usize, const CHL: usize, const CHNR: usize>
+RuntimeMain<'a, T, Q, BUFNR, CHL, CHNR>
+where T: Time {
+    pub fn as_ref(&'a self) -> impl Runtime {
+        RuntimeRef {
+            rt: self,
+        }
+    }
+}
+
+/*
+ * log buffer buffer
+ */
+// #[derive(Clone, Copy)]
+struct LogBufBuf<const L: usize, const NR: usize> {
+    deque: Deque<LogBuf<L>, NR>,
+}
+
+impl<const L: usize, const NR: usize>
+Default for LogBufBuf<L, NR> {
+    fn default() -> Self {
+        Self {
+            deque: Deque::default(),
+        }
+    }
+}
+
+impl<const L: usize, const NR: usize>
+LogBufBuf<L, NR> {
+    fn iter(&self) -> DequeRefIter<LogBuf<L>> {
+        self.deque.iter()
+    }
+
+    fn iter_mut(&mut self) -> DequeMutRefIter<LogBuf<L>> {
+        self.deque.iter_mut()
+    }
+}
+
+/*
+ * log buffer
+ */
+#[derive(Clone, Copy)]
+struct LogBuf<const L: usize> {
+    data: Deque<u8, L>,
+}
+
+impl<const L: usize>
+Default for LogBuf<L> {
+    fn default() -> Self {
+        Self {
             data: Deque::default(),
         }
     }
 }
 
-impl<const N: usize, const D: usize> Write for LogChan<N, D> {
+impl<const L: usize>
+Write for LogBuf<L> {
     fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
         if self.data.is_full() {
             for _ in 0..s.len() {
-                self.data.pop_front();
+                self.data.pop();
             }
         }
         for b in s.as_bytes() {
-            self.data.push_back(*b);
+            self.data.push(*b);
         }
         Ok(())
     }
 }
-
-/*
-pub struct RuntimeMain <T, Q, const CHANSZ: usize, const CHANNR: usize, const BUFLEN: usize> {
-    logchanbuf: Deque<LogChan<CHANSZ>, CHANNR>,
-    timer: T,
-    rwqueue: Q,
-    rwbufqueue: Deque<RawBuf, BUFLEN>,
-}
-
-impl<T, RW,
-const CHANLEN: usize, const CHANNR: usize, const BUFLEN: usize>
-RuntimeInner<T, RW, CHANLEN, CHANNR, BUFLEN>
-{
-    pub fn new<'a, ChanCtr: FnMut(usize) -> &'a str>(
-        timer: T,
-        rwcmd: RW, rwdata: Deque<RawBuf, BUFLEN>,
-        chanmap: ChanCtr
-    ) -> Self {
-        let logchanbuf = Deque::new(|idx| {
-            LogChan::new(chanmap(idx));
-        });
-        Self {
-            timer: timer,
-            rwqueue: rwcmd, rwbufqueue: rwdata,
-            logchanbuf: logchanbuf,
-        }
-    }
-}
-
-impl<T, Q,
-const CHANLEN: usize, const CHANNR: usize, const BUFLEN: usize>
-RuntimeInner<T, Q, CHANLEN, CHANNR, BUFLEN>
-where T: Time {
-    fn time(&mut self) -> Duration {
-        self.timer.time()
-    }
-}
-
-impl<T, Q: Queue,
-const CHANLEN: usize, const CHANNR: usize, const BUFLEN: usize>
-Write for RuntimeInner<T, Q, CHANLEN, CHANNR, BUFLEN> {
-    fn write_str(&mut self, _s: &str) -> Result<(), fmt::Error> {
-        Err(fmt::Error)
-/*
-        if self.deque.capacity() - self.deque.len() < s.len() {
-            return Err(fmt::Error);
-        }
-        s.chars().for_each(|item| {
-            self.deque.push_back(item);
-        });
-*/
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct RuntimeChan<'a, T, Q,
-const CHANLEN: usize, const CHANNR: usize, const BUFLEN: usize> {
-    chan: String<LOG_CHAN_NAME_LEN>,
-    cell: Cell<&'a RuntimeInner<T, Q, CHANLEN, CHANNR, BUFLEN>>,
-}
-
-impl<'a, T, Q,
-const CHANLEN: usize, const CHANNR: usize, const BUFLEN: usize>
-RuntimeCell<'_, T, Q, CHANLEN, CHANNR, BUFLEN> {
-    pub fn find(rt: &RuntimeInner<T, Q, CHANLEN, CHANNR, BUFLEN>, name: &str) -> Option<Self> {
-        let namestr = String::new(name);
-        let Some(chan) = rt.logchanbuf.find(|&chan| namestr == chan.name) else {
-            return None;
-        };
-        Some(Self {
-            chan: namestr,
-            cell: Cell::new(rt),
-        })
-    }
-}
-
-impl<'a, T: Time, Q,
-const CHANLEN: usize, const CHANNR: usize, const BUFLEN: usize>
-Time for RuntimeCell<'_, T, Q, CHANLEN, CHANNR, BUFLEN> {
-    fn time(&mut self) -> Duration {
-        let mut time = Duration::default();
-        self.cell.update(|rt| {
-            time = *rt.time();
-            rt
-        });
-        time
-    }
-}
-
-impl<'a, T, Q,
-const CHANLEN: usize, const CHANNR: usize, const BUFLEN: usize>
-Write for RuntimeCell<'_, T, Q, CHANLEN, CHANNR, BUFLEN> {
-    fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
-        let res;
-        self.cell.update(|rt| {
-            res = rt.write_str(s);
-            rt
-        })
-        res
-    }
-}
-*/

@@ -6,7 +6,7 @@ pub mod volatile;
 pub mod runtime;
 pub mod cmd;
 
-pub mod virtio;
+// pub mod virtio;
 
 pub mod ip;
 
