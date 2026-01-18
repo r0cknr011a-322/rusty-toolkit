@@ -1,11 +1,10 @@
 use crate::collection::deque::{ Deque };
 use crate::cmd::{ Queue, Poll };
 use crate::cmd::rw::{ Response, Error };
-use toolkit_unsafe::{ IPCByteBuf };
 
 struct IPCBufQueue<Q, const REQNR: usize, const RSPNR: usize> {
     queue: Q,
-    reqbuf: Deque<IPCByteBuf, REQNR>,
+    // reqbuf: Deque<IPCByteBuf, REQNR>,
     rspbuf: Deque<Response, RSPNR>,
 }
 
@@ -14,7 +13,7 @@ IPCBufQueue<Q, REQNR, RSPNR> {
     fn new(queue: Q) -> Self {
         Self {
             queue: queue,
-            reqbuf: Deque::new(|_| IPCByteBuf::new(0, 0)),
+            // reqbuf: Deque::new(|_| IPCByteBuf::new(0, 0)),
             rspbuf: Deque::new(|_| Response::Ok),
         }
     }
@@ -38,12 +37,12 @@ SendIPCBufQueue<Q, REQNR, RSPNR> {
 
 impl<Q, const REQNR: usize, const RSPNR: usize>
 Queue for SendIPCBufQueue<Q, REQNR, RSPNR>
-where Q: Queue<Request=IPCByteBuf, Response=Response, Error=Error> {
-    type Request = IPCByteBuf;
+where Q: Queue<Request=usize, Response=Response, Error=Error> {
+    type Request = usize;
     type Response = Response;
     type Error = Error;
 
-    fn push(&mut self, _req: IPCByteBuf) -> Poll<Result<(), Error>> {
+    fn push(&mut self, _req: usize) -> Poll<Result<(), Error>> {
         Poll::Ready(Err(Error::Fatal))
     }
 

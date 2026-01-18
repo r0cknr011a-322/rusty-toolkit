@@ -1,5 +1,5 @@
 #[derive(Clone, Copy)]
-pub enum Dir {
+enum Dir {
     Inc,
     Dec,
 }

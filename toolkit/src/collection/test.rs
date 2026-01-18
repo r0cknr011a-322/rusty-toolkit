@@ -116,7 +116,7 @@ fn queue_push_pop() {
 }
 
 #[test]
-fn deque_into_iter() {
+fn queue_into_iter() {
     // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C ]
     let buf: [TestItem; ITEMNR] = core::array::from_fn(
         |i| TestItem::new(i.try_into().unwrap())
@@ -250,9 +250,8 @@ fn deque_into_iter() {
     assert_eq!(iter.next_back(), None);
 }
 
-/*
 #[test]
-fn deque_from_iter() {
+fn queue_from_iter() {
     // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C ]
     let buf: [TestItem; ITEMNR] = core::array::from_fn(
         |i| TestItem::new(i.try_into().unwrap())
@@ -260,55 +259,55 @@ fn deque_from_iter() {
 
     let deque: Deque<TestItem, ITEMNR> = buf
         .into_iter()
-        .filter(|e| e.data % 2 == 0)
+        .filter(|i| i.data % 2 == 0)
         .collect();
     assert_eq!(deque.capacity(), ITEMNR);
     assert_eq!(deque.len(), 7);
     assert_eq!(deque.head(), 0);
-    assert_eq!(deque.tail(), 5);
+    assert_eq!(deque.tail(), 7);
 }
 
 #[test]
-fn deque_equals() {
+fn queue_equals() {
     // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C ]
     let buf: [TestItem; ITEMNR] = core::array::from_fn(|i|
         TestItem::new(i.try_into().unwrap())
     );
 
     let mut ldeque = Deque::<TestItem, ITEMNR>::default();
-    for i in 0..4 {
-        ldeque.push_front(buf[4 + i]);
+    for i in 0..10 {
+        ldeque.push(buf[i]);
     }
-    for i in 0..4 {
-        ldeque.push_back(buf[3 - i]);
+    for _ in 0..10 {
+        let _ = ldeque.pop();
+    }
+    for i in 0..8 {
+        ldeque.push(buf[i]);
     }
     //               |>
-    // [ 4, 5, 6, 7, x, x, x, x, x, 0, 1, 2, 3 ]
-    //                          <|
+    // [ 3, 4, 5, 6, 7, x, x, x, x, x, 0, 1, 2 ]
+    //                                 |>
     assert_eq!(ldeque.len(), 8);
 
     let mut rdeque = Deque::<TestItem, ITEMNR>::default();
-    for i in 0..ITEMNR {
-        rdeque.push_front(buf[i]);
-    }
-
-    assert_ne!(ldeque, rdeque);
 
     for i in 0..2 {
-        rdeque.pop_back();
+        rdeque.push(buf[i]);
     }
-    for i in 0..ITEMNR {
-        rdeque.pop_front();
+    assert_ne!(ldeque, rdeque);
+    for i in 0..2 {
+        let _ = rdeque.pop();
     }
+    assert_ne!(ldeque, rdeque);
+
     for i in 0..8 {
-        rdeque.push_front(buf[i]);
+        rdeque.push(buf[i]);
     }
     //                                 |>
     // [ x, x, 0, 1, 2, 3, 4, 5, 6, 7, x, x, x ]
-    //     <|
+    //         |>
     assert_eq!(rdeque.len(), 8);
 
     assert_eq!(ldeque, rdeque);
     assert_eq!(rdeque, ldeque);
 }
-*/

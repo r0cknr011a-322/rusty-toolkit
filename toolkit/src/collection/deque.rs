@@ -2,7 +2,7 @@ use core::array::{ from_fn };
 use core::ops::{ Range };
 use core::slice::{ Iter, IterMut };
 use core::iter::{ FusedIterator };
-use crate::collection::cursor::{ Cursor, Dir };
+use crate::collection::cursor::{ Cursor };
 
 #[derive(Debug)]
 pub struct Deque<I, const L: usize> {
@@ -39,11 +39,11 @@ where I: PartialEq {
         let mut lhead = self.head;
         let mut rhead = other.head;
         for _ in 0..self.len() {
-            lhead.prev();
-            rhead.prev();
             if self.buf[lhead.pos()] != other.buf[rhead.pos()] {
                 return false;
             }
+            lhead.next();
+            rhead.next();
         }
         true
     }
@@ -55,10 +55,10 @@ where I: Eq { }
 
 impl<I, const LEN: usize>
 Default for Deque<I, LEN>
-where I: Default {
+where I: Copy + Default {
     fn default() -> Self {
         Self {
-            buf: from_fn(|_| I::default()),
+            buf: [I::default(); LEN],
             head: Cursor::new(0), tail: Cursor::new(0),
             full: false, stack: false,
         }
@@ -122,14 +122,14 @@ Deque<I, LEN> {
     fn as_slices(&self) -> (&[I], &[I]) {
         let (left, right) = self.slice_ranges();
         let (left_left, left_right) = self.buf.split_at(left.end);
-        let (right_left, right_right) = left_right.split_at(right.start);
+        let (_, right_right) = left_right.split_at(right.start);
         (left_left, right_right)
     }
 
     fn as_mut_slices(&mut self) -> (&mut [I], &mut [I]) {
         let (left, right) = self.slice_ranges();
         let (left_left, left_right) = self.buf.split_at_mut(left.end);
-        let (right_left, right_right) = left_right.split_at_mut(right.start);
+        let (_, right_right) = left_right.split_at_mut(right.start);
         (left_left, right_right)
     }
 
@@ -210,10 +210,9 @@ where I: Copy {
     }
 }
 
-/*
 impl<I, const L: usize>
 FromIterator<I> for Deque<I, L>
-where I: Copy {
+where I: Copy + Default {
     fn from_iter<IntoIter: IntoIterator<Item=I>>(other: IntoIter) -> Self {
         let mut deque = Deque::default();
         for item in other {
@@ -225,7 +224,6 @@ where I: Copy {
         deque
     }
 }
-*/
 
 /*
  * owned into iterator
@@ -304,12 +302,6 @@ Iterator for DequeRefIter<'a, I> {
     }
 }
 
-impl<'a, I>
-ExactSizeIterator for DequeRefIter<'a, I> { }
-
-impl<'a, I>
-FusedIterator for DequeRefIter<'a, I> { }
-
 /*
 impl<'a, I, const LEN: usize> DoubleEndedIterator for DequeRefIter<'a, I, LEN> {
     fn next_back(&mut self) -> Option<Self::Item> {
@@ -321,31 +313,34 @@ impl<'a, I, const LEN: usize> DoubleEndedIterator for DequeRefIter<'a, I, LEN> {
 }
 */
 
+impl<'a, I>
+ExactSizeIterator for DequeRefIter<'a, I> { }
+
+impl<'a, I>
+FusedIterator for DequeRefIter<'a, I> { }
+
 pub struct DequeMutRefIter<'a, I> {
     first: IterMut<'a, I>,
     second: IterMut<'a, I>,
 }
 
-/*
-impl<'a, I, const LEN: usize> ExactSizeIterator for DequeMutRefIter<'a, I, LEN> { }
-
-impl<'a, I, const LEN: usize> FusedIterator for DequeMutRefIter<'a, I, LEN> { }
-
-impl<'a, I, const LEN: usize> Iterator for DequeMutRefIter<'a, I, LEN> {
+impl<'a, I>
+Iterator for DequeMutRefIter<'a, I> {
     type Item = &'a mut I;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let Some(idx) = self.iter.next() else {
-            return None;
-        };
-        Some(&mut self.deque.buf[idx])
+        if let Some(item) = self.first.next() {
+            return Some(item);
+        }
+        self.second.next()
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.iter.len(), Some(self.iter.len()))
+        (self.first.len() + self.second.len(), Some(self.first.len() + self.second.len()))
     }
 }
 
+/*
 impl<'a, I, const LEN: usize> DoubleEndedIterator for DequeMutRefIter<'a, I, LEN> {
     fn next_back(&mut self) -> Option<Self::Item> {
         let Some(idx) = self.iter.prev() else {
@@ -355,3 +350,9 @@ impl<'a, I, const LEN: usize> DoubleEndedIterator for DequeMutRefIter<'a, I, LEN
     }
 }
 */
+
+impl<'a, I>
+ExactSizeIterator for DequeMutRefIter<'a, I> { }
+
+impl<'a, I>
+FusedIterator for DequeMutRefIter<'a, I> { }

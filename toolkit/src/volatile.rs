@@ -14,11 +14,11 @@ pub trait VolatileByteBuf {
     fn wr64(&mut self, off: usize, value: u64);
 }
 
-pub struct MemVolatileByteBuf {
-    mem: IPCByteBuf,
+pub struct MemVolatileByteBuf<'a> {
+    mem: IPCByteBuf<'a>,
 }
 
-impl VolatileByteBuf for MemVolatileByteBuf {
+impl VolatileByteBuf for MemVolatileByteBuf<'_> {
     fn rd8(&mut self, off: usize) -> u8 {
         self.mem.rd8_volatile(off)
     }
