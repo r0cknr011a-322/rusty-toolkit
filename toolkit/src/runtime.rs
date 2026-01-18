@@ -1,4 +1,4 @@
-use core::fmt::{ self, Write };
+use core::fmt::{ self };
 use core::cell::{ Cell };
 use core::time::{ Duration };
 use crate::collection::deque::{ Deque, DequeRefIter, DequeMutRefIter };
@@ -9,9 +9,12 @@ pub trait Time {
     fn time(&mut self) -> Duration;
 }
 
-pub trait Runtime: Time {
-    fn logbuf(&mut self) -> impl Iterator<Item=&mut impl Write>;
-    fn ipcbuf(&mut self) -> impl Iterator<Item=&mut IPCByteBuf>;
+pub trait Runtime: Time + fmt::Write {
+    fn logbuf(&mut self, idx: usize);
+    fn ipcbuf(&mut self, idx: usize);
+
+    fn wr8(&mut self, off: usize, value: u8);
+    fn rd8(&self, off: usize) -> u8;
 }
 
 /*
@@ -19,6 +22,8 @@ pub trait Runtime: Time {
  */
 #[derive(Clone, Copy)]
 struct RuntimeRef<'a, T, Q, const BUFNR: usize, const CHL: usize, const CHNR: usize> {
+    logbuf: usize,
+    ipcbuf: usize,
     rt: &'a RuntimeMain<'a, T, Q, BUFNR, CHL, CHNR>,
 }
 
@@ -26,7 +31,9 @@ impl<'a, T, Q, const BUFNR: usize, const CHL: usize, const CHNR: usize>
 Time for RuntimeRef<'a, T, Q, BUFNR, CHL, CHNR>
 where T: Time {
     fn time(&mut self) -> Duration {
-        let mut timer = self.rt.timer.take().unwrap();
+        let Some(mut timer) = self.rt.timer.take() else {
+            return Duration::default();
+        };
         let time = timer.time();
         self.rt.timer.set(Some(timer));
         time
@@ -34,13 +41,54 @@ where T: Time {
 }
 
 impl<'a, T, Q, const BUFNR: usize, const CHL: usize, const CHNR: usize>
+fmt::Write for RuntimeRef<'a, T, Q, BUFNR, CHL, CHNR> {
+    fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
+        let mut buf = self.rt.logbufbuf.take();
+        if let Some(logbuf) = buf.iter_mut().nth(self.logbuf) {
+            logbuf.write_str(s);
+            self.rt.logbufbuf.set(buf);
+        }
+        Ok(())
+    }
+}
+
+impl<'a, T, Q, const BUFNR: usize, const CHL: usize, const CHNR: usize>
 Runtime for RuntimeRef<'a, T, Q, BUFNR, CHL, CHNR>
 where T: Time {
-    fn logbuf(&self) -> impl Iterator<Item=&mut impl Write> {
-        let mut buf = self.rt.logbufbuf.take();
-        let logbuf = buf.iter_mut();
-        self.rt.logbufbuf.set(buf);
-        logbuf
+    fn logbuf(&mut self, idx: usize) {
+        let logbuf = self.rt.logbufbuf.take();
+        if idx < logbuf.iter().len() {
+            self.logbuf = idx;
+        }
+    }
+
+    fn ipcbuf(&mut self, idx: usize) {
+        let Some(ipcbuf) = self.rt.ipcbufbuf.take() else {
+            return;
+        };
+        if idx < ipcbuf.iter().len() {
+            self.ipcbuf = idx;
+        }
+    }
+
+    fn rd8(&self, off: usize) -> u8 {
+        let Some(inner) = self.rt.ipcbufbuf.take() else {
+            return 0;
+        };
+        let Some(ipcbuf) = inner.iter().nth(self.ipcbuf) else {
+            return 0;
+        };
+        ipcbuf.rd8(off)
+    }
+
+    fn wr8(&mut self, off: usize, value: u8) {
+        let Some(mut inner) = self.rt.ipcbufbuf.take() else {
+            return;
+        };
+        let Some(mut ipcbuf) = inner.iter_mut().nth(self.ipcbuf) else {
+            return;
+        };
+        ipcbuf.wr8(off, value);
     }
 }
 
@@ -51,7 +99,7 @@ pub struct RuntimeMain<'a, T, Q, const BUFNR: usize, const CHL: usize, const CHN
     timer: Cell<Option<T>>,
     queue: Cell<Q>,
     logbufbuf: Cell<LogBufBuf<CHL, CHNR>>,
-    ipcbufbuf: Cell<Deque<IPCByteBuf<'a>, BUFNR>>,
+    ipcbufbuf: Cell<Option<Deque<IPCByteBuf<'a>, BUFNR>>>,
 }
 
 impl<'a, T, Q, const BUFNR: usize, const CHL: usize, const CHNR: usize>
@@ -59,7 +107,7 @@ RuntimeMain<'a, T, Q, BUFNR, CHL, CHNR> {
     pub fn new<B: FnMut(usize) -> IPCByteBuf<'a>>(timer: T, queue: Q, mut bufctr: B) -> Self {
         Self {
             timer: Cell::new(Some(timer)), queue: Cell::new(queue),
-            ipcbufbuf: Cell::new(Deque::new(|idx| bufctr(idx))),
+            ipcbufbuf: Cell::new(Some(Deque::new(|idx| bufctr(idx)))),
             logbufbuf: Cell::new(LogBufBuf::default()),
         }
     }
@@ -70,7 +118,7 @@ RuntimeMain<'a, T, Q, BUFNR, CHL, CHNR>
 where T: Time {
     pub fn as_ref(&'a self) -> impl Runtime {
         RuntimeRef {
-            rt: self,
+            rt: self, logbuf: 0, ipcbuf: 0,
         }
     }
 }
@@ -121,7 +169,7 @@ Default for LogBuf<L> {
 }
 
 impl<const L: usize>
-Write for LogBuf<L> {
+fmt::Write for LogBuf<L> {
     fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
         if self.data.is_full() {
             for _ in 0..s.len() {
