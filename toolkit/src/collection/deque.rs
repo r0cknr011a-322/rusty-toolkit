@@ -145,14 +145,14 @@ Deque<I, LEN> {
         self.len() == 0
     }
 
-    pub fn iter(&self) -> DequeRefIter<I> {
+    pub fn iter(&self) -> DequeRefIter<'_, I> {
         let (first, second) = self.as_slices();
         DequeRefIter {
             first: first.iter(), second: second.iter(),
         }
     }
 
-    pub fn iter_mut(&mut self) -> DequeMutRefIter<I> {
+    pub fn iter_mut(&mut self) -> DequeMutRefIter<'_, I> {
         let (first, second) = self.as_mut_slices();
         DequeMutRefIter {
             first: first.iter_mut(), second: second.iter_mut(),

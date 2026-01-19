@@ -1,5 +1,6 @@
-use core::fmt::{ self };
-use core::cell::{ Cell };
+use core::fmt::{ self, Write };
+use core::cell::{ Cell, RefCell };
+use core::borrow::{ Borrow, BorrowMut };
 use core::time::{ Duration };
 use crate::collection::deque::{ Deque, DequeRefIter, DequeMutRefIter };
 use crate::cmd::{ Queue };
@@ -43,10 +44,8 @@ where T: Time {
 impl<'a, T, Q, const BUFNR: usize, const CHL: usize, const CHNR: usize>
 fmt::Write for RuntimeRef<'a, T, Q, BUFNR, CHL, CHNR> {
     fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
-        let mut buf = self.rt.logbufbuf.take();
-        if let Some(logbuf) = buf.iter_mut().nth(self.logbuf) {
-            logbuf.write_str(s);
-            self.rt.logbufbuf.set(buf);
+        if let Some(buf) = self.rt.logbufbuf.borrow_mut().iter_mut().nth(self.logbuf) {
+            buf.write_str(s);
         }
         Ok(())
     }
@@ -56,19 +55,25 @@ impl<'a, T, Q, const BUFNR: usize, const CHL: usize, const CHNR: usize>
 Runtime for RuntimeRef<'a, T, Q, BUFNR, CHL, CHNR>
 where T: Time {
     fn logbuf(&mut self, idx: usize) {
-        let logbuf = self.rt.logbufbuf.take();
-        if idx < logbuf.iter().len() {
+        // let logbuf = self.rt.logbufbuf.take();
+        // if idx < logbuf.iter().len() {
+        //     self.logbuf = idx;
+        // }
+        // self.rt.logbufbuf.set(logbuf);
+        let buf = self.rt.logbufbuf.borrow();
+        if idx < buf.iter().len() {
             self.logbuf = idx;
         }
     }
 
     fn ipcbuf(&mut self, idx: usize) {
-        let Some(ipcbuf) = self.rt.ipcbufbuf.take() else {
-            return;
-        };
-        if idx < ipcbuf.iter().len() {
-            self.ipcbuf = idx;
+        let ipcbufbuf = self.rt.ipcbufbuf.take();
+        if let Some(buf) = &ipcbufbuf {
+            if idx < buf.iter().len() {
+                self.ipcbuf = idx;
+            }
         }
+        self.rt.ipcbufbuf.set(ipcbufbuf);
     }
 
     fn rd8(&self, off: usize) -> u8 {
@@ -85,7 +90,7 @@ where T: Time {
         let Some(mut inner) = self.rt.ipcbufbuf.take() else {
             return;
         };
-        let Some(mut ipcbuf) = inner.iter_mut().nth(self.ipcbuf) else {
+        let Some(ipcbuf) = inner.iter_mut().nth(self.ipcbuf) else {
             return;
         };
         ipcbuf.wr8(off, value);
@@ -98,7 +103,7 @@ where T: Time {
 pub struct RuntimeMain<'a, T, Q, const BUFNR: usize, const CHL: usize, const CHNR: usize> {
     timer: Cell<Option<T>>,
     queue: Cell<Q>,
-    logbufbuf: Cell<LogBufBuf<CHL, CHNR>>,
+    logbufbuf: RefCell<LogBufBuf<CHL, CHNR>>,
     ipcbufbuf: Cell<Option<Deque<IPCByteBuf<'a>, BUFNR>>>,
 }
 
@@ -108,7 +113,7 @@ RuntimeMain<'a, T, Q, BUFNR, CHL, CHNR> {
         Self {
             timer: Cell::new(Some(timer)), queue: Cell::new(queue),
             ipcbufbuf: Cell::new(Some(Deque::new(|idx| bufctr(idx)))),
-            logbufbuf: Cell::new(LogBufBuf::default()),
+            logbufbuf: RefCell::new(LogBufBuf::default()),
         }
     }
 }
@@ -142,11 +147,11 @@ Default for LogBufBuf<L, NR> {
 
 impl<const L: usize, const NR: usize>
 LogBufBuf<L, NR> {
-    fn iter(&self) -> DequeRefIter<LogBuf<L>> {
+    fn iter(&self) -> DequeRefIter<'_, LogBuf<L>> {
         self.deque.iter()
     }
 
-    fn iter_mut(&mut self) -> DequeMutRefIter<LogBuf<L>> {
+    fn iter_mut(&mut self) -> DequeMutRefIter<'_, LogBuf<L>> {
         self.deque.iter_mut()
     }
 }
