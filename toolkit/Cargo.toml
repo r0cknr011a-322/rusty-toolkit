@@ -6,3 +6,8 @@ authors = [ "r0cknr011a" ]
 
 [dependencies]
 toolkit-unsafe = { path = "../unsafe" }
+
+[lints.clippy]
+panic = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
