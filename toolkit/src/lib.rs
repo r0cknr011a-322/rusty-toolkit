@@ -2,7 +2,7 @@
 #![forbid(unsafe_code)]
 
 pub mod collection;
-pub mod volatile;
+pub mod bytebuf;
 pub mod runtime;
 pub mod cmd;
 
