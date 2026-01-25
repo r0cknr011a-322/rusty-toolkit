@@ -90,10 +90,8 @@ const IPCBUFNR: usize, const DEVMEMNR: usize, const CHL: usize, const CHNR: usiz
 
 impl<'a, T, Q, const IPCBUFNR: usize, const DEVMEMNR: usize, const CHL: usize, const CHNR: usize>
 RuntimeMain<'a, T, Q, IPCBUFNR, DEVMEMNR, CHL, CHNR> {
-    pub fn new<
-        I: FnMut(usize) -> MemByteBuf<'a>,
-        D: FnMut(usize) -> MemByteBuf<'a>,
-    >(timer: T, queue: Q, mut ipcbufctr: I, mut devmemctr: D) -> Self {
+    pub fn new<I, D>(timer: T, queue: Q, mut ipcbufctr: I, mut devmemctr: D) -> Self
+    where I: FnMut(usize) -> MemByteBuf<'a>, D: FnMut(usize) -> MemByteBuf<'a> {
         Self {
             timer: RefCell::new(timer), queue: RefCell::new(queue),
             logbufbuf: RefCell::new(LogBufBuf::default()),
@@ -164,56 +162,60 @@ const IPCBUFNR: usize, const DEVMEMNR: usize, const CHL: usize, const CHNR: usiz
 impl<'a, T, Q, const IPCBUFNR: usize, const DEVMEMNR: usize, const CHL: usize, const CHNR: usize>
 VolatileByteBuf for DevMemRef<'a, T, Q, IPCBUFNR, DEVMEMNR, CHL, CHNR> {
     fn wr8_volatile(&mut self, off: usize, value: u8) {
-        if let Some(buf) = self.rt.devmembuf.borrow_mut().iter_mut().nth(self.idx) {
+        let mut bufref = self.rt.devmembuf.borrow_mut();
+        if let Some(buf) = bufref.iter_mut().nth(self.idx) {
             buf.wr8_volatile(off, value);
         }
     }
 
     fn rd8_volatile(&mut self, off: usize) -> u8 {
-        let mut buf = self.rt.devmembuf.borrow_mut();
-        let Some(bytebuf) = buf.iter_mut().nth(self.idx) else {
+        let mut bufref = self.rt.devmembuf.borrow_mut();
+        let Some(bytebuf) = bufref.iter_mut().nth(self.idx) else {
             return 0;
         };
         bytebuf.rd8_volatile(off)
     }
 
     fn wr16_volatile(&mut self, off: usize, value: u16) {
-        if let Some(buf) = self.rt.devmembuf.borrow_mut().iter_mut().nth(self.idx) {
+        let mut bufref = self.rt.devmembuf.borrow_mut();
+        if let Some(buf) = bufref.iter_mut().nth(self.idx) {
             buf.wr16_volatile(off, value);
         }
     }
 
     fn rd16_volatile(&mut self, off: usize) -> u16 {
-        let mut buf = self.rt.devmembuf.borrow_mut();
-        let Some(bytebuf) = buf.iter_mut().nth(self.idx) else {
+        let mut bufref = self.rt.devmembuf.borrow_mut();
+        let Some(bytebuf) = bufref.iter_mut().nth(self.idx) else {
             return 0;
         };
         bytebuf.rd16_volatile(off)
     }
 
     fn wr32_volatile(&mut self, off: usize, value: u32) {
-        if let Some(buf) = self.rt.devmembuf.borrow_mut().iter_mut().nth(self.idx) {
-            buf.wr32_volatile(off, value);
+        let mut bufref = self.rt.devmembuf.borrow_mut();
+        if let Some(bytebuf) = bufref.iter_mut().nth(self.idx) {
+            bytebuf.wr32_volatile(off, value);
         }
     }
 
     fn rd32_volatile(&mut self, off: usize) -> u32 {
-        let mut buf = self.rt.devmembuf.borrow_mut();
-        let Some(bytebuf) = buf.iter_mut().nth(self.idx) else {
+        let mut bufref = self.rt.devmembuf.borrow_mut();
+        let Some(bytebuf) = bufref.iter_mut().nth(self.idx) else {
             return 0;
         };
         bytebuf.rd32_volatile(off)
     }
 
     fn wr64_volatile(&mut self, off: usize, value: u64) {
-        if let Some(buf) = self.rt.devmembuf.borrow_mut().iter_mut().nth(self.idx) {
+        let mut bufref = self.rt.devmembuf.borrow_mut();
+        if let Some(buf) = bufref.iter_mut().nth(self.idx) {
             buf.wr64_volatile(off, value);
         }
     }
 
     fn rd64_volatile(&mut self, off: usize) -> u64 {
-        let mut buf = self.rt.devmembuf.borrow_mut();
-        let Some(bytebuf) = buf.iter_mut().nth(self.idx) else {
+        let mut bufref = self.rt.devmembuf.borrow_mut();
+        let Some(bytebuf) = bufref.iter_mut().nth(self.idx) else {
             return 0;
         };
         bytebuf.rd64_volatile(off)
@@ -229,9 +231,40 @@ const IPCBUFNR: usize, const DEVMEMNR: usize, const CHL: usize, const CHNR: usiz
 
 impl<'a, T, Q, const IPCBUFNR: usize, const DEVMEMNR: usize, const CHL: usize, const CHNR: usize>
 ByteBuf for IPCBufRef<'a, T, Q, IPCBUFNR, DEVMEMNR, CHL, CHNR> {
+    fn addr(&self) -> usize {
+        let bufref = self.rt.ipcbufbuf.borrow();
+        let Some(bytebuf) = bufref.iter().nth(self.idx) else {
+            return 0;
+        };
+        bytebuf.addr()
+    }
+
+    fn len(&self) -> usize {
+        let bufref = self.rt.ipcbufbuf.borrow();
+        let Some(bytebuf) = bufref.iter().nth(self.idx) else {
+            return 0;
+        };
+        bytebuf.len()
+    }
+
+    fn copy_to(&mut self, off: usize, buf: &mut [u8]) {
+        let mut bufref = self.rt.ipcbufbuf.borrow_mut();
+        if let Some(bytebuf) = bufref.iter_mut().nth(self.idx) {
+            bytebuf.copy_to(off, buf);
+        }
+    }
+
+    fn copy_from(&mut self, off: usize, buf: &[u8]) {
+        let mut bufref = self.rt.ipcbufbuf.borrow_mut();
+        if let Some(bytebuf) = bufref.iter_mut().nth(self.idx) {
+            bytebuf.copy_from(off, buf);
+        }
+    }
+
     fn wr8(&mut self, off: usize, value: u8) {
-        if let Some(buf) = self.rt.ipcbufbuf.borrow_mut().iter_mut().nth(self.idx) {
-            buf.wr8(off, value);
+        let mut bufref = self.rt.ipcbufbuf.borrow_mut();
+        if let Some(bytebuf) = bufref.iter_mut().nth(self.idx) {
+            bytebuf.wr8(off, value);
         }
     }
 
