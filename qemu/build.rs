@@ -1,4 +1,3 @@
 fn main() {
-    println!("cargo::rerun-if-changed=map.ld");
-    println!("cargo::rustc-link-arg=-Tmap.ld");
+    println!("cargo::rerun-if-changed=src/bin/riscv64-virt/map.ld");
 }

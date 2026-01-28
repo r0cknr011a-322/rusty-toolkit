@@ -1,0 +1,25 @@
+#!/bin/python3
+import sys
+import argparse
+import subprocess
+
+parser = argparse.ArgumentParser()
+subparser = parser.add_subparsers()
+
+buildp = subparser.add_parser('build')
+buildp.add_argument('target', choices=[ 'riscv64', 'bullshit' ])
+
+simp = subparser.add_parser('sim')
+simp.add_argument('machine', choices=[ 'virt' ])
+
+args = parser.parse_args()
+
+sim = [
+    'qemu-system-riscv64',
+    '-nographic',
+    '-M', 'virt',
+    '-bios', 'target/main.elf',
+    '-icount', 'shift=10',
+]
+
+# subprocess.run(sim)

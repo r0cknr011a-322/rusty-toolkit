@@ -2,6 +2,6 @@
 .global reset_trap
 
 reset_trap:
-    li sp, 0x84000000
+    li sp, 0x80080000
     call main
     ret
