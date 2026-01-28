@@ -17,11 +17,11 @@ use core::sync::atomic::{ AtomicU32 };
 #[cfg(target_has_atomic = "64")]
 use core::sync::atomic::{ AtomicU64 };
 
-pub struct IPCByteBuf<'a> {
+pub struct ByteBuf<'a> {
     buf: &'a mut [u8],
 }
 
-impl IPCByteBuf<'_> {
+impl ByteBuf<'_> {
     pub fn new(addr: usize, len: usize) -> Self {
         Self {
             buf: unsafe {
@@ -36,6 +36,14 @@ impl IPCByteBuf<'_> {
 
     pub fn len(&self) -> usize {
         self.buf.len()
+    }
+
+    pub fn copy_to(&mut self, off: usize, buf: &mut [u8]) {
+        buf.copy_from_slice(&self.buf[off..]);
+    }
+
+    pub fn copy_from(&mut self, off: usize, buf: &[u8]) {
+        (&mut self.buf[off..]).copy_from_slice(buf);
     }
 
     fn off<T>(&self, off: usize) -> *const T {

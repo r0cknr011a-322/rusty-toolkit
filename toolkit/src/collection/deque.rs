@@ -55,10 +55,10 @@ where I: Eq { }
 
 impl<I, const LEN: usize>
 Default for Deque<I, LEN>
-where I: Copy + Default {
+where I: Default {
     fn default() -> Self {
         Self {
-            buf: [I::default(); LEN],
+            buf: from_fn(|_| I::default()),
             head: Cursor::new(0), tail: Cursor::new(0),
             full: false, stack: false,
         }
