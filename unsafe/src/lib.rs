@@ -190,37 +190,3 @@ impl IPCByteBuf<'_> {
         }
     }
 }
-
-/*
-impl RW16 for IOBufVolatile<'_> {
-    fn rd(&mut self, off: usize) -> u16 {
-        unsafe {
-            let addr = self.off::<u16>(off);
-            addr.read_volatile()
-        }
-    }
-
-    fn wr(&mut self, off: usize, value: u16) {
-        unsafe {
-            let addr = self.off_mut::<u16>(off);
-            addr.write_volatile(value);
-        }
-    }
-}
-
-impl RW32 for IOBufVolatile<'_> {
-    fn rd(&mut self, off: usize) -> u32 {
-        unsafe {
-            let addr = self.off::<u32>(off);
-            addr.read_volatile()
-        }
-    }
-
-    fn wr(&mut self, off: usize, value: u32) {
-        unsafe {
-            let addr = self.off_mut::<u32>(off);
-            addr.write_volatile(value);
-        }
-    }
-}
-*/
