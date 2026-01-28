@@ -4,7 +4,7 @@ use core::borrow::{ Borrow, BorrowMut };
 use core::time::{ Duration };
 use crate::collection::deque::{ Deque, DequeRefIter, DequeMutRefIter };
 use crate::cmd::{ Queue };
-use crate::bytebuf::{ MemByteBuf, ByteBuf, VolatileByteBuf, AtomicByteBuf };
+use crate::bytebuf::{ RawByteBuf, ByteBuf, VolatileByteBuf, AtomicByteBuf };
 
 pub trait Time {
     fn time(&mut self) -> Duration;
@@ -84,14 +84,14 @@ const IPCBUFNR: usize, const DEVMEMNR: usize, const CHL: usize, const CHNR: usiz
     timer: RefCell<T>,
     queue: RefCell<Q>,
     logbufbuf: RefCell<LogBufBuf<CHL, CHNR>>,
-    ipcbufbuf: RefCell<Deque<MemByteBuf<'a>, IPCBUFNR>>,
-    devmembuf: RefCell<Deque<MemByteBuf<'a>, DEVMEMNR>>,
+    ipcbufbuf: RefCell<Deque<RawByteBuf<'a>, IPCBUFNR>>,
+    devmembuf: RefCell<Deque<RawByteBuf<'a>, DEVMEMNR>>,
 }
 
 impl<'a, T, Q, const IPCBUFNR: usize, const DEVMEMNR: usize, const CHL: usize, const CHNR: usize>
 RuntimeMain<'a, T, Q, IPCBUFNR, DEVMEMNR, CHL, CHNR> {
     pub fn new<I, D>(timer: T, queue: Q, mut ipcbufctr: I, mut devmemctr: D) -> Self
-    where I: FnMut(usize) -> MemByteBuf<'a>, D: FnMut(usize) -> MemByteBuf<'a> {
+    where I: FnMut(usize) -> RawByteBuf<'a>, D: FnMut(usize) -> RawByteBuf<'a> {
         Self {
             timer: RefCell::new(timer), queue: RefCell::new(queue),
             logbufbuf: RefCell::new(LogBufBuf::default()),

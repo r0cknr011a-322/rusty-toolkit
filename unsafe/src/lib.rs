@@ -38,6 +38,14 @@ impl IPCByteBuf<'_> {
         self.buf.len()
     }
 
+    pub fn copy_to(&mut self, off: usize, buf: &mut [u8]) {
+        buf.copy_from_slice(&self.buf[off..]);
+    }
+
+    pub fn copy_from(&mut self, off: usize, buf: &[u8]) {
+        (&mut self.buf[off..]).copy_from_slice(buf);
+    }
+
     fn off<T>(&self, off: usize) -> *const T {
         (&self.buf[off..off+mem::size_of::<T>()]).as_ptr().cast::<T>()
     }
