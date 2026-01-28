@@ -1,9 +1,11 @@
 [package]
 name = "toolkit-rv64-virt"
-version = "0.0.2"
+version = "0.0.3"
 edition = "2024"
 authors = [ "r0cknr011a" ]
 
 [dependencies]
 toolkit = { path = "../toolkit" }
-toolkit-unsafe = { path = "../unsafe" }
+
+[[bin]]
+name = "riscv64-virt"

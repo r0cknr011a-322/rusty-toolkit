@@ -3,25 +3,19 @@
 version = 4
 
 [[package]]
-name = "rusty-scrapyard-cpu"
-version = "0.0.1"
-
-[[package]]
-name = "rusty-scrapyard-iomem"
-version = "0.0.1"
-
-[[package]]
-name = "rusty-scrapyard-lib"
-version = "0.0.1"
+name = "toolkit"
+version = "0.0.3"
 dependencies = [
- "rusty-scrapyard-iomem",
+ "toolkit-unsafe",
 ]
 
 [[package]]
-name = "rusty-scrapyard-rv64-virt"
-version = "0.0.1"
+name = "toolkit-rv64-virt"
+version = "0.0.3"
 dependencies = [
- "rusty-scrapyard-cpu",
- "rusty-scrapyard-iomem",
- "rusty-scrapyard-lib",
+ "toolkit",
 ]
+
+[[package]]
+name = "toolkit-unsafe"
+version = "0.0.2"
