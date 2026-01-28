@@ -17,11 +17,11 @@ use core::sync::atomic::{ AtomicU32 };
 #[cfg(target_has_atomic = "64")]
 use core::sync::atomic::{ AtomicU64 };
 
-pub struct IPCByteBuf<'a> {
+pub struct ByteBuf<'a> {
     buf: &'a mut [u8],
 }
 
-impl IPCByteBuf<'_> {
+impl ByteBuf<'_> {
     pub fn new(addr: usize, len: usize) -> Self {
         Self {
             buf: unsafe {
