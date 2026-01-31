@@ -1,6 +1,12 @@
-use toolkit_unsafe::{ IPCByteBuf };
+use toolkit_unsafe::{ ByteBuf as MemByteBuf };
 
 pub trait ByteBuf {
+    fn addr(&self) -> usize;
+    fn len(&self) -> usize;
+
+    fn copy_to(&mut self, off: usize, buf: &mut [u8]);
+    fn copy_from(&mut self, off: usize, buf: &[u8]);
+
     fn rd8(&mut self, off: usize) -> u8;
     fn wr8(&mut self, off: usize, value: u8);
 
@@ -42,13 +48,37 @@ pub trait AtomicByteBuf {
     fn wr64_atomic(&mut self, off: usize, value: u64);
 }
 
-pub struct MemByteBuf<'a> {
-    mem: IPCByteBuf<'a>,
+pub struct RawByteBuf<'a> {
+    mem: MemByteBuf<'a>,
 }
 
-impl ByteBuf for MemByteBuf<'_> {
+impl RawByteBuf<'_> {
+    pub fn new(addr: usize, len: usize) -> Self {
+        Self {
+            mem: MemByteBuf::new(addr, len),
+        }
+    }
+}
+
+impl ByteBuf for RawByteBuf<'_> {
+    fn addr(&self) -> usize {
+        self.mem.addr()
+    }
+
+    fn len(&self) -> usize {
+        self.mem.len()
+    }
+
     fn rd8(&mut self, off: usize) -> u8 {
         self.mem.rd8(off)
+    }
+
+    fn copy_to(&mut self, off: usize, buf: &mut [u8]) {
+        self.mem.copy_to(off, buf);
+    }
+
+    fn copy_from(&mut self, off: usize, buf: &[u8]) {
+        self.mem.copy_from(off, buf);
     }
 
     fn wr8(&mut self, off: usize, value: u8) {
@@ -80,7 +110,7 @@ impl ByteBuf for MemByteBuf<'_> {
     }
 }
 
-impl VolatileByteBuf for MemByteBuf<'_> {
+impl VolatileByteBuf for RawByteBuf<'_> {
     fn rd8_volatile(&mut self, off: usize) -> u8 {
         self.mem.rd8_volatile(off)
     }
@@ -114,7 +144,7 @@ impl VolatileByteBuf for MemByteBuf<'_> {
     }
 }
 
-impl AtomicByteBuf for MemByteBuf<'_> {
+impl AtomicByteBuf for RawByteBuf<'_> {
     fn rd8_atomic(&mut self, off: usize) -> u8 {
         self.mem.rd8_volatile(off)
     }
