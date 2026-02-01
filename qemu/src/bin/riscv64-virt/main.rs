@@ -8,6 +8,7 @@ use toolkit::runtime::{ RuntimeMain, Time, Runtime };
 use toolkit::bytebuf::{ RawByteBuf, VolatileByteBuf };
 use toolkit::cmd::{ Queue, Poll };
 use toolkit::cmd::rw::{ Response as RWRsp, Error as RWErr };
+use toolkit::virtio::char::{ CharDevDrv };
 
 use core::arch::global_asm;
 global_asm!(include_str!("trap.S"));
@@ -80,24 +81,14 @@ pub extern "C" fn main() -> ! {
         loop { }
     };
 
-    let Some(mut netdev7) = rtref.dev(7) else {
-        loop { }
-    };
-
-    writeln!(log0, "hello world!!!");
-
-    let id = netdev7.rd32_volatile(0x00);
-    writeln!(log0, "id: {id}");
-
-    let mut buf: [u8; 512] = [u8::default(); 512];
-    for (idx, byte) in buf.iter_mut().enumerate() {
-        *byte = netdev7.rd8_volatile(0x00 + idx);
-    }
-
-    write!(log0, "buf: ");
-    for byte in buf.iter() {
-        writeln!(log0, "{:X} ", byte); 
-    }
+    let mut chardevdrv = CharDevDrv::new(rtref, 7);
+    let magic = chardevdrv.get_magic();
+    let version = chardevdrv.get_version();
+    let id = chardevdrv.get_id();
+    chardevdrv.reset();
+    let msg = "hello world!!!\n";
+    chardevdrv.emerg_wr(msg.as_bytes());
+    writeln!(log0, "magic: {:X}; version: {:X}", magic, version);
 
     loop { }
 }

@@ -6,7 +6,7 @@ pub mod extbytebuf;
 pub mod bytechan;
 pub mod runtime;
 
-// pub mod virtio;
+pub mod virtio;
 
 // pub mod ip;
 
