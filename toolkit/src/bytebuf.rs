@@ -146,34 +146,34 @@ impl VolatileByteBuf for RawByteBuf<'_> {
 
 impl AtomicByteBuf for RawByteBuf<'_> {
     fn rd8_atomic(&mut self, off: usize) -> u8 {
-        self.mem.rd8_volatile(off)
+        self.mem.rd8_atomic(off)
     }
 
     fn wr8_atomic(&mut self, off: usize, value: u8) {
-        self.mem.wr8_volatile(off, value);
+        self.mem.wr8_atomic(off, value);
     }
 
     fn rd16_atomic(&mut self, off: usize) -> u16 {
-        self.mem.rd16_volatile(off)
+        self.mem.rd16_atomic(off)
     }
 
     fn wr16_atomic(&mut self, off: usize, value: u16) {
-        self.mem.wr16_volatile(off, value);
+        self.mem.wr16_atomic(off, value);
     }
 
     fn rd32_atomic(&mut self, off: usize) -> u32 {
-        self.mem.rd32_volatile(off)
+        self.mem.rd32_atomic(off)
     }
 
     fn wr32_atomic(&mut self, off: usize, value: u32) {
-        self.mem.wr32_volatile(off, value);
+        self.mem.wr32_atomic(off, value);
     }
 
     fn rd64_atomic(&mut self, off: usize) -> u64 {
-        self.mem.rd64_volatile(off)
+        self.mem.rd64_atomic(off)
     }
 
     fn wr64_atomic(&mut self, off: usize, value: u64) {
-        self.mem.wr64_volatile(off, value);
+        self.mem.wr64_atomic(off, value);
     }
 }
