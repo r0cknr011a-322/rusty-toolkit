@@ -1,5 +1,5 @@
 use crate::runtime::{ Runtime };
-use crate::bytebuf::{ RawByteBuf, VolatileByteBuf };
+use crate::bytebuf::{ RawByteBuf, ByteBuf, VolatileByteBuf };
 
 const MAGIC: usize      = 0x0000;
 const VERSION: usize    = 0x0004;
@@ -31,7 +31,7 @@ pub enum CharDevDrvErr {
 pub struct CharDevDrv<'a, RT> {
     rt: RT, 
     regbuf: RawByteBuf<'a>,
-    cmdbuf: RawByteBuf<'a>,
+    descbuf: RawByteBuf<'a>,
     drvbuf: RawByteBuf<'a>,
     devbuf: RawByteBuf<'a>,
     databuf: RawByteBuf<'a>,
@@ -40,12 +40,11 @@ pub struct CharDevDrv<'a, RT> {
 impl<'a, RT>
 CharDevDrv<'a, RT>
 where RT: Runtime {
-    pub fn new(rt: RT,
-        regbuf: RawByteBuf<'a>, cmdbuf: RawByteBuf<'a>,
-        drvbuf: RawByteBuf<'a>, devbuf: RawByteBuf<'a>,
-        databuf: RawByteBuf<'a>) -> Self {
+    pub fn new(rt: RT, regbuf: RawByteBuf<'a>, databuf: RawByteBuf<'a>,
+        descbuf: RawByteBuf<'a>, drvbuf: RawByteBuf<'a>, devbuf: RawByteBuf<'a>) -> Self {
         Self {
-            rt: rt, regbuf: regbuf, cmdbuf: cmdbuf, drvbuf: drvbuf, devbuf: devbuf, databuf: databuf,
+            rt: rt, regbuf: regbuf, databuf: databuf,
+            descbuf: descbuf, drvbuf: drvbuf, devbuf: devbuf,
         }
     }
 
@@ -103,7 +102,7 @@ where RT: Runtime {
     }
 
     pub fn send(&mut self, data: &[u8]) {
-        
+        self.databuf.copy_from(0, data);
     }
 
     pub fn send_poll(&mut self) -> Result<(), CharDevDrvErr> {

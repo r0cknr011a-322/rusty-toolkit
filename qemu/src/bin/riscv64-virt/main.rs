@@ -94,8 +94,11 @@ pub extern "C" fn main() -> ! {
     let Ok(()) = chardevdrv.init() else {
         loop { }
     };
+
     let msg = "hello world!!!\n";
+    chardevdrv.send(msg.as_bytes());
     chardevdrv.emerg_wr(msg.as_bytes());
+
     writeln!(log0, "magic: {:X}; version: {:X}", magic, version);
 
     loop { }
