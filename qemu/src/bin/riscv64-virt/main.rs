@@ -81,11 +81,19 @@ pub extern "C" fn main() -> ! {
         loop { }
     };
 
-    let mut chardevdrv = CharDevDrv::new(rtref, 7);
+    let mut chardevdrv = CharDevDrv::new(rtref,
+        RawByteBuf::new(0x1000_8000, 0x1000),
+        RawByteBuf::new(0x8001_0000, 0x1000),
+        RawByteBuf::new(0x8001_1000, 0x1000),
+        RawByteBuf::new(0x8001_2000, 0x1000),
+        RawByteBuf::new(0x8001_3000, 0x1000),
+    );
     let magic = chardevdrv.get_magic();
     let version = chardevdrv.get_version();
     let id = chardevdrv.get_id();
-    chardevdrv.reset();
+    let Ok(()) = chardevdrv.init() else {
+        loop { }
+    };
     let msg = "hello world!!!\n";
     chardevdrv.emerg_wr(msg.as_bytes());
     writeln!(log0, "magic: {:X}; version: {:X}", magic, version);

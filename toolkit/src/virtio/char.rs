@@ -1,5 +1,5 @@
 use crate::runtime::{ Runtime };
-use crate::bytebuf::{ VolatileByteBuf };
+use crate::bytebuf::{ RawByteBuf, VolatileByteBuf };
 
 const MAGIC: usize      = 0x0000;
 const VERSION: usize    = 0x0004;
@@ -13,7 +13,6 @@ const FEAT_SIZE: u32        = 0x01;
 const FEAT_MULTIPORT: u32   = 0x02;
 const FEAT_EMERG_WR: u32    = 0x04;
 
-
 const STATUS: usize         = 0x0070;
 const STATUS_ACK: u32       = 0x0001;
 const STATUS_DRV: u32       = 0x0002;
@@ -24,83 +23,90 @@ const STATUS_FAIL: u32      = 0x0080;
 
 const CFG_EMERG_WR: usize   = 0x0108;
 
-pub struct CharDevDrv<RT> {
-    rt: RT, 
-    regbufidx: usize,
+pub enum CharDevDrvErr {
+    Fatal,
+    Timeout,
 }
 
-impl<RT>
-CharDevDrv<RT>
+pub struct CharDevDrv<'a, RT> {
+    rt: RT, 
+    regbuf: RawByteBuf<'a>,
+    cmdbuf: RawByteBuf<'a>,
+    drvbuf: RawByteBuf<'a>,
+    devbuf: RawByteBuf<'a>,
+    databuf: RawByteBuf<'a>,
+}
+
+impl<'a, RT>
+CharDevDrv<'a, RT>
 where RT: Runtime {
-    pub fn new(rt: RT, idx: usize) -> Self {
+    pub fn new(rt: RT,
+        regbuf: RawByteBuf<'a>, cmdbuf: RawByteBuf<'a>,
+        drvbuf: RawByteBuf<'a>, devbuf: RawByteBuf<'a>,
+        databuf: RawByteBuf<'a>) -> Self {
         Self {
-            rt: rt, regbufidx: idx,
+            rt: rt, regbuf: regbuf, cmdbuf: cmdbuf, drvbuf: drvbuf, devbuf: devbuf, databuf: databuf,
         }
     }
 
-    pub fn set_regbuf(&mut self, idx: usize) {
-        self.regbufidx = idx;
-    }
-
-    pub fn get_regbuf(&self) -> usize {
-        self.regbufidx
+    pub fn regbuf(&mut self, regbuf: RawByteBuf<'a>) {
+        self.regbuf = regbuf;
     }
 
     pub fn get_magic(&mut self) -> u32 {
-        let Some(mut regbuf) = self.rt.dev(self.regbufidx) else {
-            return 0;
-        };
-        regbuf.rd32_volatile(MAGIC)
+        self.regbuf.rd32_volatile(MAGIC)
     }
 
     pub fn get_version(&mut self) -> u32 {
-        let Some(mut regbuf) = self.rt.dev(self.regbufidx) else {
-            return 0;
-        };
-        regbuf.rd32_volatile(VERSION)
+        self.regbuf.rd32_volatile(VERSION)
     }
 
     pub fn get_id(&mut self) -> u32 {
-        let Some(mut regbuf) = self.rt.dev(self.regbufidx) else {
-            return 0;
-        };
-        regbuf.rd32_volatile(ID)
+        self.regbuf.rd32_volatile(ID)
     }
 
-    pub fn reset(&mut self) {
-        let Some(mut regbuf) = self.rt.dev(self.regbufidx) else {
-            return;
-        };
+    pub fn init(&mut self) -> Result<(), CharDevDrvErr> {
         let mut status = 0;
-        regbuf.wr32_volatile(STATUS, status);
+        self.regbuf.wr32_volatile(STATUS, status);
 
         status |= STATUS_ACK | STATUS_DRV;
-        regbuf.wr32_volatile(STATUS, status);
+        self.regbuf.wr32_volatile(STATUS, status);
 
-        regbuf.wr32_volatile(DEV_FEAT_SEL, 0);
-        let features = regbuf.rd32_volatile(DEV_FEAT_VAL);
-        if features & FEAT_EMERG_WR != 0 {
-            regbuf.wr32_volatile(DRV_FEAT_SEL, 0);
-            regbuf.wr32_volatile(DRV_FEAT_VAL, FEAT_EMERG_WR);
+        self.regbuf.wr32_volatile(DEV_FEAT_SEL, 0);
+        let chardev_features = self.regbuf.rd32_volatile(DEV_FEAT_VAL);
+
+        self.regbuf.wr32_volatile(DEV_FEAT_SEL, 1);
+        let common_features = self.regbuf.rd32_volatile(DEV_FEAT_VAL);
+
+        if chardev_features & FEAT_EMERG_WR != 0 {
+            self.regbuf.wr32_volatile(DRV_FEAT_SEL, 0);
+            self.regbuf.wr32_volatile(DRV_FEAT_VAL, FEAT_EMERG_WR);
         }
 
         status |= STATUS_FEAT_OK;
-        regbuf.wr32_volatile(STATUS, status);
+        self.regbuf.wr32_volatile(STATUS, status);
 
-        let status_new = regbuf.rd32_volatile(STATUS);
+        let status_new = self.regbuf.rd32_volatile(STATUS);
         if status_new != status {
-            return;
+            return Err(CharDevDrvErr::Fatal);
         }
 
         status |= STATUS_DRV_OK;
-        regbuf.wr32_volatile(STATUS, status);
+        self.regbuf.wr32_volatile(STATUS, status);
+        Ok(())
     }
 
     pub fn emerg_wr(&mut self, data: &[u8]) {
-        if let Some(mut regbuf) = self.rt.dev(self.regbufidx) {
-            for item in data {
-                regbuf.wr8_volatile(CFG_EMERG_WR, *item);
-            }
+        for item in data {
+            self.regbuf.wr8_volatile(CFG_EMERG_WR, *item);
         }
+    }
+
+    pub fn send(&mut self, data: &[u8]) {
+        
+    }
+
+    pub fn send_poll(&mut self) -> Result<(), CharDevDrvErr> {
+        Err(CharDevDrvErr::Timeout)
     }
 }
