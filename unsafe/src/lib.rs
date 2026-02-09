@@ -54,22 +54,10 @@ impl ByteBuf<'_> {
         (&mut self.buf[off..off+mem::size_of::<T>()]).as_mut_ptr().cast::<T>()
     }
 
+    /* regular */
     pub fn rd8(&self, off: usize) -> u8 {
         let addr = self.off::<u8>(off);
         unsafe { addr.read() }
-    }
-
-    pub fn rd8_volatile(&self, off: usize) -> u8 {
-        let addr = self.off::<u8>(off);
-        unsafe { addr.read_volatile() }
-    }
-
-    #[cfg(target_has_atomic = "8")]
-    pub fn rd8_atomic(&mut self, off: usize) -> u8 {
-        unsafe {
-            let addr = AtomicU8::from_ptr(self.off_mut::<u8>(off));
-            addr.load(Ordering::SeqCst)
-        }
     }
 
     pub fn wr8(&mut self, off: usize, value: u8) {
@@ -77,9 +65,86 @@ impl ByteBuf<'_> {
         unsafe { addr.write(value); }
     }
 
+    pub fn rd16(&self, off: usize) -> u16 {
+        let addr = self.off::<u16>(off);
+        unsafe { addr.read() }
+    }
+
+    pub fn wr16(&mut self, off: usize, value: u16) {
+        let addr = self.off_mut::<u16>(off);
+        unsafe { addr.write(value); }
+    }
+
+    pub fn rd32(&self, off: usize) -> u32 {
+        let addr = self.off::<u32>(off);
+        unsafe { addr.read() }
+    }
+
+    pub fn wr32(&mut self, off: usize, value: u32) {
+        let addr = self.off_mut::<u32>(off);
+        unsafe { addr.write(value); }
+    }
+
+    pub fn rd64(&self, off: usize) -> u64 {
+        let addr = self.off::<u64>(off);
+        unsafe { addr.read() }
+    }
+
+    pub fn wr64(&mut self, off: usize, value: u64) {
+        let addr = self.off_mut::<u64>(off);
+        unsafe { addr.write(value); }
+    }
+
+    /* volatile */
+    pub fn rd8_volatile(&self, off: usize) -> u8 {
+        let addr = self.off::<u8>(off);
+        unsafe { addr.read_volatile() }
+    }
+
     pub fn wr8_volatile(&mut self, off: usize, value: u8) {
         let addr = self.off_mut::<u8>(off);
         unsafe { addr.write_volatile(value); }
+    }
+
+    pub fn rd16_volatile(&self, off: usize) -> u16 {
+        let addr = self.off::<u16>(off);
+        unsafe { addr.read_volatile() }
+    }
+
+    pub fn wr16_volatile(&mut self, off: usize, value: u16) {
+        let addr = self.off_mut::<u16>(off);
+        unsafe { addr.write_volatile(value); }
+    }
+
+    pub fn rd32_volatile(&self, off: usize) -> u32 {
+        // let addr = self.off::<u32>(off);
+        let addr: *const u32 = self.buf.as_ptr().cast();
+        unsafe { addr.read_volatile() }
+    }
+
+    pub fn wr32_volatile(&mut self, off: usize, value: u32) {
+        // let addr = self.off_mut::<u32>(off);
+        let addr: *mut u32 = self.buf.as_mut_ptr().cast();
+        unsafe { addr.write_volatile(value); }
+    }
+
+    pub fn rd64_volatile(&self, off: usize) -> u64 {
+        let addr = self.off::<u64>(off);
+        unsafe { addr.read_volatile() }
+    }
+
+    pub fn wr64_volatile(&mut self, off: usize, value: u64) {
+        let addr = self.off_mut::<u64>(off);
+        unsafe { addr.write_volatile(value); }
+    }
+
+    /* atomic */
+    #[cfg(target_has_atomic = "8")]
+    pub fn rd8_atomic(&mut self, off: usize) -> u8 {
+        unsafe {
+            let addr = AtomicU8::from_ptr(self.off_mut::<u8>(off));
+            addr.load(Ordering::SeqCst)
+        }
     }
 
     #[cfg(target_has_atomic = "8")]
@@ -90,32 +155,12 @@ impl ByteBuf<'_> {
         }
     }
 
-    pub fn rd16(&self, off: usize) -> u16 {
-        let addr = self.off::<u16>(off);
-        unsafe { addr.read() }
-    }
-
-    pub fn rd16_volatile(&self, off: usize) -> u16 {
-        let addr = self.off::<u16>(off);
-        unsafe { addr.read_volatile() }
-    }
-
     #[cfg(target_has_atomic = "16")]
     pub fn rd16_atomic(&mut self, off: usize) -> u16 {
         unsafe {
             let addr = AtomicU16::from_ptr(self.off_mut::<u16>(off));
             addr.load(Ordering::SeqCst)
         }
-    }
-
-    pub fn wr16(&mut self, off: usize, value: u16) {
-        let addr = self.off_mut::<u16>(off);
-        unsafe { addr.write(value); }
-    }
-
-    pub fn wr16_volatile(&mut self, off: usize, value: u16) {
-        let addr = self.off_mut::<u16>(off);
-        unsafe { addr.write_volatile(value); }
     }
 
     #[cfg(target_has_atomic = "16")]
@@ -126,32 +171,12 @@ impl ByteBuf<'_> {
         }
     }
 
-    pub fn rd32(&self, off: usize) -> u32 {
-        let addr = self.off::<u32>(off);
-        unsafe { addr.read() }
-    }
-
-    pub fn rd32_volatile(&self, off: usize) -> u32 {
-        let addr = self.off::<u32>(off);
-        unsafe { addr.read_volatile() }
-    }
-
     #[cfg(target_has_atomic = "32")]
     pub fn rd32_atomic(&mut self, off: usize) -> u32 {
         unsafe {
             let addr = AtomicU32::from_ptr(self.off_mut::<u32>(off));
             addr.load(Ordering::SeqCst)
         }
-    }
-
-    pub fn wr32(&mut self, off: usize, value: u32) {
-        let addr = self.off_mut::<u32>(off);
-        unsafe { addr.write(value); }
-    }
-
-    pub fn wr32_volatile(&mut self, off: usize, value: u32) {
-        let addr = self.off_mut::<u32>(off);
-        unsafe { addr.write_volatile(value); }
     }
 
     #[cfg(target_has_atomic = "32")]
@@ -162,32 +187,12 @@ impl ByteBuf<'_> {
         }
     }
 
-    pub fn rd64(&self, off: usize) -> u64 {
-        let addr = self.off::<u64>(off);
-        unsafe { addr.read() }
-    }
-
-    pub fn rd64_volatile(&self, off: usize) -> u64 {
-        let addr = self.off::<u64>(off);
-        unsafe { addr.read_volatile() }
-    }
-
     #[cfg(target_has_atomic = "64")]
     pub fn rd64_atomic(&mut self, off: usize) -> u64 {
         unsafe {
             let addr = AtomicU64::from_ptr(self.off_mut::<u64>(off));
             addr.load(Ordering::SeqCst)
         }
-    }
-
-    pub fn wr64(&mut self, off: usize, value: u64) {
-        let addr = self.off_mut::<u64>(off);
-        unsafe { addr.write(value); }
-    }
-
-    pub fn wr64_volatile(&mut self, off: usize, value: u64) {
-        let addr = self.off_mut::<u64>(off);
-        unsafe { addr.write_volatile(value); }
     }
 
     #[cfg(target_has_atomic = "64")]

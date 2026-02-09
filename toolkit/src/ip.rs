@@ -1,7 +1,7 @@
 use crate::collection::deque::{ Deque };
-use crate::cmd::{ Queue, Poll };
-use crate::cmd::rw::{ Response, Error };
+use crate::task::{ Queue, Poll };
 
+/*
 struct IPCBufQueue<Q, const REQNR: usize, const RSPNR: usize> {
     queue: Q,
     // reqbuf: Deque<IPCByteBuf, REQNR>,
@@ -19,9 +19,7 @@ IPCBufQueue<Q, REQNR, RSPNR> {
     }
 }
 
-/*
  * send queue
- */
 pub struct SendIPCBufQueue<Q, const REQNR: usize, const RSPNR: usize> {
     queue: IPCBufQueue<Q, REQNR, RSPNR>,
 }
@@ -50,10 +48,11 @@ where Q: Queue<Request=usize, Response=Response, Error=Error> {
         Poll::Ready(Err(Error::Fatal))
     }
 }
+ */
 
 /*
  * recv queue
- */
 pub struct RecvIPCBufQueue<Q, const REQNR: usize, const RSPNR: usize> {
     queue: IPCBufQueue<Q, REQNR, RSPNR>,
 }
+ */

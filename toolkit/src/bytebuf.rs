@@ -35,16 +35,24 @@ pub trait VolatileByteBuf {
 }
 
 pub trait AtomicByteBuf {
+    #[cfg(target_has_atomic = "8")]
     fn rd8_atomic(&mut self, off: usize) -> u8;
+    #[cfg(target_has_atomic = "8")]
     fn wr8_atomic(&mut self, off: usize, value: u8);
 
+    #[cfg(target_has_atomic = "16")]
     fn rd16_atomic(&mut self, off: usize) -> u16;
+    #[cfg(target_has_atomic = "16")]
     fn wr16_atomic(&mut self, off: usize, value: u16);
 
+    #[cfg(target_has_atomic = "32")]
     fn rd32_atomic(&mut self, off: usize) -> u32;
+    #[cfg(target_has_atomic = "32")]
     fn wr32_atomic(&mut self, off: usize, value: u32);
 
+    #[cfg(target_has_atomic = "64")]
     fn rd64_atomic(&mut self, off: usize) -> u64;
+    #[cfg(target_has_atomic = "64")]
     fn wr64_atomic(&mut self, off: usize, value: u64);
 }
 
@@ -145,34 +153,42 @@ impl VolatileByteBuf for RawByteBuf<'_> {
 }
 
 impl AtomicByteBuf for RawByteBuf<'_> {
+    #[cfg(target_has_atomic = "8")]
     fn rd8_atomic(&mut self, off: usize) -> u8 {
         self.mem.rd8_atomic(off)
     }
 
+    #[cfg(target_has_atomic = "8")]
     fn wr8_atomic(&mut self, off: usize, value: u8) {
         self.mem.wr8_atomic(off, value);
     }
 
+    #[cfg(target_has_atomic = "16")]
     fn rd16_atomic(&mut self, off: usize) -> u16 {
         self.mem.rd16_atomic(off)
     }
 
+    #[cfg(target_has_atomic = "16")]
     fn wr16_atomic(&mut self, off: usize, value: u16) {
         self.mem.wr16_atomic(off, value);
     }
 
+    #[cfg(target_has_atomic = "32")]
     fn rd32_atomic(&mut self, off: usize) -> u32 {
         self.mem.rd32_atomic(off)
     }
 
+    #[cfg(target_has_atomic = "32")]
     fn wr32_atomic(&mut self, off: usize, value: u32) {
         self.mem.wr32_atomic(off, value);
     }
 
+    #[cfg(target_has_atomic = "64")]
     fn rd64_atomic(&mut self, off: usize) -> u64 {
         self.mem.rd64_atomic(off)
     }
 
+    #[cfg(target_has_atomic = "64")]
     fn wr64_atomic(&mut self, off: usize, value: u64) {
         self.mem.wr64_atomic(off, value);
     }

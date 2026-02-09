@@ -119,7 +119,7 @@ Deque<I, LEN> {
         first.len() + second.len()
     }
 
-    fn as_slices(&self) -> (&[I], &[I]) {
+    pub fn as_slices(&self) -> (&[I], &[I]) {
         let (left, right) = self.slice_ranges();
         let (left_left, left_right) = self.buf.split_at(left.end);
         let (_, right_right) = left_right.split_at(right.start);
