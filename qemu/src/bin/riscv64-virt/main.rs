@@ -6,8 +6,7 @@ use core::fmt::{ Write };
 use core::time::{ Duration };
 use toolkit::runtime::{ RuntimeMain, Time, Runtime };
 use toolkit::bytebuf::{ RawByteBuf, VolatileByteBuf };
-use toolkit::cmd::{ Queue, Poll };
-use toolkit::cmd::rw::{ Response as RWRsp, Error as RWErr };
+use toolkit::task::{ Session, Queue, Poll, GenRsp, GenErr };
 use toolkit::virtio::char::{ CharDevDrv };
 
 use core::arch::global_asm;
@@ -45,19 +44,22 @@ const DevMemBuf: [(usize, usize); DEV_MEM_BUF_NR] = [
     (0x1000_8000, 0x1000),
 ];
 
-struct RTQueue { }
+struct RTQueue<'a> {
+    output: RawByteBuf<'a>,
+}
 
-impl Queue for RTQueue {
-    type Request = u8;
-    type Response = RWRsp;
-    type Error = RWErr;
+impl<'a>
+Queue for RTQueue {
+    type Request = &'a [u8];
+    type Response = GenRsp;
+    type Error = GenErr;
 
-    fn push(&mut self, req: u8) -> Poll<Result<(), RWErr>> {
+    fn push(&mut self, req: u8) -> Poll<Result<(), GenErr>> {
         Poll::Ready(Ok(()))
     }
 
-    fn pop(&mut self) -> Poll<Result<RWRsp, RWErr>> {
-        Poll::Ready(Ok(RWRsp::Ok))
+    fn pop(&mut self) -> Poll<Result<GenRsp, GenErr>> {
+        Poll::Ready(Ok(GenRsp::Ok))
     }
 }
 
@@ -86,20 +88,20 @@ pub extern "C" fn main() -> ! {
         RawByteBuf::new(0x8001_0000, 0x1000),
         RawByteBuf::new(0x8001_1000, 0x1000),
         RawByteBuf::new(0x8001_2000, 0x1000),
-        RawByteBuf::new(0x8001_3000, 0x1000),
     );
-    let magic = chardevdrv.get_magic();
-    let version = chardevdrv.get_version();
-    let id = chardevdrv.get_id();
-    let Ok(()) = chardevdrv.init() else {
-        loop { }
+
+    let init = loop {
+        if let Poll::Ready(rdy) = chardevdrv.init(()) {
+            break rdy;
+        }
     };
 
-    let msg = "hello world!!!\n";
-    chardevdrv.send(msg.as_bytes());
-    chardevdrv.emerg_wr(msg.as_bytes());
+    if let Ok(()) = init {
+        writeln!(log0, "init success!!!");
+    }
 
-    writeln!(log0, "magic: {:X}; version: {:X}", magic, version);
+    let msg = "hello world!!!\n";
+    chardevdrv.emerg_wr(msg.as_bytes());
 
     loop { }
 }

@@ -1,9 +1,15 @@
+use core::fmt::{ Write };
 use crate::runtime::{ Runtime };
 use crate::bytebuf::{ RawByteBuf, ByteBuf, VolatileByteBuf };
+use crate::collection::deque::{ Deque };
+use crate::task::{ Session, Queue, Poll, GenRsp, GenErr };
 
 const MAGIC: usize      = 0x0000;
+const MAGIC_VAL: u32    = 0x74726976;
+
 const VERSION: usize    = 0x0004;
 const ID: usize         = 0x0008;
+const ID_VAL: u32       = 3;
 
 const DEV_FEAT_VAL: usize   = 0x0010;
 const DEV_FEAT_SEL: usize   = 0x0014;
@@ -23,48 +29,51 @@ const STATUS_FAIL: u32      = 0x0080;
 
 const CFG_EMERG_WR: usize   = 0x0108;
 
-pub enum CharDevDrvErr {
-    Fatal,
-    Timeout,
-}
-
 pub struct CharDevDrv<'a, RT> {
     rt: RT, 
     regbuf: RawByteBuf<'a>,
     descbuf: RawByteBuf<'a>,
     drvbuf: RawByteBuf<'a>,
     devbuf: RawByteBuf<'a>,
-    databuf: RawByteBuf<'a>,
+    databuf: Deque<Option<&'a RawByteBuf<'a>>, 4>,
 }
 
 impl<'a, RT>
 CharDevDrv<'a, RT>
 where RT: Runtime {
-    pub fn new(rt: RT, regbuf: RawByteBuf<'a>, databuf: RawByteBuf<'a>,
+    pub fn new(rt: RT, regbuf: RawByteBuf<'a>, // databuf: RawByteBuf<'a>,
         descbuf: RawByteBuf<'a>, drvbuf: RawByteBuf<'a>, devbuf: RawByteBuf<'a>) -> Self {
         Self {
-            rt: rt, regbuf: regbuf, databuf: databuf,
+            rt: rt, regbuf: regbuf,
             descbuf: descbuf, drvbuf: drvbuf, devbuf: devbuf,
+            databuf: Deque::default(),
         }
     }
 
-    pub fn regbuf(&mut self, regbuf: RawByteBuf<'a>) {
-        self.regbuf = regbuf;
+    pub fn emerg_wr(&mut self, data: &[u8]) {
+        for item in data {
+            self.regbuf.wr8_volatile(CFG_EMERG_WR, *item);
+        }
     }
+}
 
-    pub fn get_magic(&mut self) -> u32 {
-        self.regbuf.rd32_volatile(MAGIC)
-    }
+impl<'a, RT>
+Session for CharDevDrv<'a, RT>
+where RT: Runtime {
+    type Arg = ();
+    type Error = GenErr;
 
-    pub fn get_version(&mut self) -> u32 {
-        self.regbuf.rd32_volatile(VERSION)
-    }
+    fn init(&mut self, arg: ()) -> Poll<Result<(), GenErr>> {
+        let magic = self.regbuf.rd32_volatile(MAGIC);
+        if magic != MAGIC_VAL {
+            return Poll::Ready(Err(GenErr::Fatal));
+        }
 
-    pub fn get_id(&mut self) -> u32 {
-        self.regbuf.rd32_volatile(ID)
-    }
+        let id = self.regbuf.rd32_volatile(ID);
+        if id != ID_VAL {
+            return Poll::Ready(Err(GenErr::Fatal));
+        }
 
-    pub fn init(&mut self) -> Result<(), CharDevDrvErr> {
         let mut status = 0;
         self.regbuf.wr32_volatile(STATUS, status);
 
@@ -87,25 +96,41 @@ where RT: Runtime {
 
         let status_new = self.regbuf.rd32_volatile(STATUS);
         if status_new != status {
-            return Err(CharDevDrvErr::Fatal);
+            return Poll::Ready(Err(GenErr::Fatal));
         }
 
         status |= STATUS_DRV_OK;
         self.regbuf.wr32_volatile(STATUS, status);
-        Ok(())
+
+        Poll::Ready(Ok(()))
     }
 
-    pub fn emerg_wr(&mut self, data: &[u8]) {
-        for item in data {
-            self.regbuf.wr8_volatile(CFG_EMERG_WR, *item);
+    fn exit(&mut self) -> Poll<()> {
+        Poll::Ready(())
+    }
+}
+
+impl<'a, RT>
+Queue for CharDevDrv<'a, RT>
+where RT: Runtime {
+    type Request = &'a RawByteBuf<'a>;
+    type Response = GenRsp;
+    type Error = GenErr;
+
+    fn push(&mut self, req: &'a RawByteBuf<'a>) -> Poll<Result<(), GenErr>> {
+        if self.databuf.is_full() {
+            return Poll::Pending;
         }
+        let Some(mut logger) = self.rt.log(1) else {
+            return Poll::Ready(Err(GenErr::Fatal));
+        };
+
+        writeln!(logger, "push: new buf: {:?} {:?}", req.addr(), req.len());
+        self.databuf.push(Some(req));
+        Poll::Ready(Ok(()))
     }
 
-    pub fn send(&mut self, data: &[u8]) {
-        self.databuf.copy_from(0, data);
-    }
-
-    pub fn send_poll(&mut self) -> Result<(), CharDevDrvErr> {
-        Err(CharDevDrvErr::Timeout)
+    fn pop(&mut self) -> Poll<Result<GenRsp, GenErr>> {
+        Poll::Ready(Ok(GenRsp::Ok))
     }
 }
