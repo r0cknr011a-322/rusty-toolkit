@@ -1,33 +1,29 @@
+pub mod bytequeue;
+
+use crate::bytebuf::{ RawByteBuf };
+
+#[cfg(test)]
+mod test;
+
 #[derive(PartialEq, Eq)]
 pub enum Poll<T> {
     Ready(T),
     Pending,
 }
 
-pub trait Queue {
-    type Request;
-    type Response;
-    type Error;
-
-    fn push(&mut self, req: Self::Request) -> Poll<Result<(), Self::Error>>;
-    fn pop(&mut self) -> Poll<Result<Self::Response, Self::Error>>;
-}
-
 pub trait Session {
     type Arg;
-    type Error;
+    type Err;
 
-    fn init(&mut self, arg: Self::Arg) -> Poll<Result<(), Self::Error>>;
+    fn init(&mut self, arg: Self::Arg) -> Poll<Result<(), Self::Err>>;
     fn exit(&mut self) -> Poll<()>;
 }
 
-#[derive(PartialEq, Eq)]
-pub enum GenRsp {
-    Ok,
-}
+pub trait Pipe {
+    type Req;
+    type Rsp;
+    type Err;
 
-#[derive(PartialEq, Eq)]
-pub enum GenErr {
-    Fatal,
-    Timeout,
+    fn push(&mut self, data: &[&mut RawByteBuf], req: Self::Req) -> Poll<Result<(), Self::Err>>;
+    fn pop(&mut self, data: &[&mut RawByteBuf]) -> Poll<Result<Self::Rsp, Self::Err>>;
 }

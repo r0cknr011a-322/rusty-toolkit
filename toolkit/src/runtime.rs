@@ -1,9 +1,9 @@
 use core::fmt::{ self, Write };
 use core::cell::{ RefCell };
-use core::borrow::{ Borrow, BorrowMut };
 use core::time::{ Duration };
 use crate::collection::deque::{ Deque, DequeRefIter, DequeMutRefIter };
-use crate::task::{ Queue, Poll, GenRsp, GenErr };
+use crate::task::{ Poll };
+use crate::task::bytequeue::{ SendByteQueue, ByteQueueErr };
 
 pub trait Timer {
     fn time(&mut self) -> Duration;
@@ -17,25 +17,26 @@ pub trait Runtime {
 /*
  * runtime
  */
-pub struct RuntimeMain<T, LOGQ, const LOGNR: usize, const LOGL: usize> {
+pub struct RuntimeMain<T, Q, const LOGNR: usize, const LOGL: usize> {
     timer: RefCell<T>,
-    logq: RefCell<LOGQ>,
-    logbufbuf: RefCell<LogBufBuf<LOGNR, LOGL>>,
+    logbuf: RefCell<LogBuf<LOGNR, LOGL>>,
+    logq: RefCell<Q>,
 }
 
 impl<T, Q, const NR: usize, const L: usize>
 RuntimeMain<T, Q, NR, L> {
     pub fn new(timer: T, logq: Q) -> Self {
         Self {
-            timer: RefCell::new(timer), logq: RefCell::new(logq),
-            logbufbuf: RefCell::new(LogBufBuf::default()),
+            timer: RefCell::new(timer),
+            logbuf: RefCell::new(LogBuf::default()),
+            logq: RefCell::new(logq),
         }
     }
 }
 
 impl<T, Q, const NR: usize, const L: usize>
 Runtime for RuntimeMain<T, Q, NR, L>
-where T: Timer, Q: Queue<Request=u8, Response=GenRsp, Error=GenErr> {
+where T: Timer, Q: SendByteQueue {
     fn time(&self) -> Duration {
         self.timer.borrow_mut().time()
     }
@@ -58,38 +59,16 @@ struct LogBufRef<'a, T, Q, const NR: usize, const L: usize> {
 
 impl<'a, T, Q, const NR: usize, const L: usize>
 Write for LogBufRef<'a, T, Q, NR, L>
-where Q: Queue<Request=u8, Response=GenRsp, Error=GenErr> {
+where Q: SendByteQueue {
     fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
-        let mut logbufbuf = self.rt.logbufbuf.borrow_mut();
-        let Some(mut buf) = logbufbuf.iter_mut().nth(self.idx) else {
-            return Ok(());
-        };
-
-        buf.write_str(s);
-
-        let mut logq = self.rt.logq.borrow_mut();
-        let mut cnt = 0;
-        while cnt < buf.len() {
-            while let Some(b) = buf.pop() {
-                let Poll::Ready(res) = logq.push(b) else {
-                    break;
-                };
-                let Ok(_) = res else {
-                    return Ok(());
-                };
+        let mut logbuf = self.rt.logbuf.borrow_mut();
+        if let Some(mut buf) = logbuf.iter_mut().nth(self.idx) {
+            let data = s.as_bytes();
+            if data.len() < buf.free() {
+                buf.push(data);
+                return Ok(());
             }
-            cnt += loop {
-                let mut cnt = 0;
-                let Poll::Ready(res) = logq.pop() else {
-                    break cnt;
-                };
-                let Ok(_) = res else {
-                    return Ok(());
-                };
-                cnt += 1;
-            };
         }
-
         Ok(())
     }
 }
@@ -97,12 +76,12 @@ where Q: Queue<Request=u8, Response=GenRsp, Error=GenErr> {
 /*
  * log buffer buffer
  */
-struct LogBufBuf<const NR: usize, const L: usize> {
-    deque: Deque<LogBuf<L>, NR>,
+struct LogBuf<const NR: usize, const L: usize> {
+    deque: Deque<CharBuf<L>, NR>,
 }
 
 impl<const NR: usize, const L: usize>
-Default for LogBufBuf<NR, L> {
+Default for LogBuf<NR, L> {
     fn default() -> Self {
         Self {
             deque: Deque::default(),
@@ -111,26 +90,26 @@ Default for LogBufBuf<NR, L> {
 }
 
 impl<const NR: usize, const L: usize>
-LogBufBuf<NR, L> {
-    fn iter(&self) -> DequeRefIter<'_, LogBuf<L>> {
+LogBuf<NR, L> {
+    fn iter(&self) -> DequeRefIter<'_, CharBuf<L>> {
         self.deque.iter()
     }
 
-    fn iter_mut(&mut self) -> DequeMutRefIter<'_, LogBuf<L>> {
+    fn iter_mut(&mut self) -> DequeMutRefIter<'_, CharBuf<L>> {
         self.deque.iter_mut()
     }
 }
 
 /*
- * log buffer
+ * char buffer
  */
 #[derive(Clone, Copy)]
-struct LogBuf<const L: usize> {
+struct CharBuf<const L: usize> {
     data: Deque<u8, L>,
 }
 
 impl<const L: usize>
-Default for LogBuf<L> {
+Default for CharBuf<L> {
     fn default() -> Self {
         Self {
             data: Deque::default(),
@@ -139,27 +118,28 @@ Default for LogBuf<L> {
 }
 
 impl<const L: usize>
-LogBuf<L> {
+CharBuf<L> {
+    fn as_slices(&self) -> (&[u8], &[u8]) {
+        self.data.as_slices()
+    }
+
     fn len(&self) -> usize {
         self.data.len()
     }
 
-    fn pop(&mut self) -> Option<u8> {
-        self.data.pop()
+    fn free(&self) -> usize {
+        self.data.free()
     }
-}
 
-impl<const L: usize>
-fmt::Write for LogBuf<L> {
-    fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
-        if self.data.is_full() {
-            for _ in 0..s.len() {
-                self.data.pop();
-            }
-        }
-        for b in s.as_bytes() {
+    fn push(&mut self, data: &[u8]) {
+        for b in data {
             self.data.push(*b);
         }
-        Ok(())
+    }
+
+    fn pop(&mut self, cnt: usize) {
+        for _ in 0..cnt {
+            let _ = self.data.pop();
+        }
     }
 }

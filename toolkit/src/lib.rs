@@ -8,6 +8,6 @@ pub mod runtime;
 
 // pub mod virtio;
 
-pub mod ip;
+// pub mod ip;
 
-pub mod elf;
+// pub mod elf;

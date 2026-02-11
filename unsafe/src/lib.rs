@@ -117,15 +117,19 @@ impl ByteBuf<'_> {
     }
 
     pub fn rd32_volatile(&self, off: usize) -> u32 {
-        // let addr = self.off::<u32>(off);
-        let addr: *const u32 = self.buf.as_ptr().cast();
-        unsafe { addr.read_volatile() }
+        unsafe {
+            // let addr = self.off::<u32>(off);
+            let addr: *const u32 = self.buf.as_ptr().byte_add(off).cast();
+            addr.read_volatile()
+        }
     }
 
     pub fn wr32_volatile(&mut self, off: usize, value: u32) {
-        // let addr = self.off_mut::<u32>(off);
-        let addr: *mut u32 = self.buf.as_mut_ptr().cast();
-        unsafe { addr.write_volatile(value); }
+        unsafe {
+            // let addr = self.off_mut::<u32>(off);
+            let addr: *mut u32 = self.buf.as_mut_ptr().byte_add(off).cast();
+            addr.write_volatile(value);
+        }
     }
 
     pub fn rd64_volatile(&self, off: usize) -> u64 {
