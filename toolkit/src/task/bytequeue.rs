@@ -37,7 +37,7 @@ PipeHead<'a, P, D, R, W> {
     }
 
     fn rdbuf_flush(&mut self, data: &mut [u8]) -> usize {
-        if data.len() < self.rdbuf.len() {
+        if data.len() <= self.rdbuf.len() {
             let (bufl, bufr) = self.rdbuf.as_slices();
             if data.len() <= bufl.len() {
                 let (tocopy, _) = bufl.split_at(data.len());
@@ -52,8 +52,11 @@ PipeHead<'a, P, D, R, W> {
             return data.len();
         }
 
+        let (bufl, bufr) = self.rdbuf.as_slices();
         let (fromcopy, _) = data.split_at_mut(self.rdbuf.len());
-        fromcopy.copy_from_slice(self.rdbuf);
+        let (datal, datar) = fromcopy.split_at_mut(bufl.len());
+        datal.copy_from_slice(bufl);
+        datar.copy_from_slice(bufr);
         self.rdbuf.len()
     }
 }
@@ -70,6 +73,15 @@ where P: Pipe<Req=usize, Rsp=&'a [u8], Err=PipeErr> {
         if flushed == data.len() {
             return Poll::Ready(Ok(flushed));
         }
+
+        let need = data.len() - flushed;
+        let toread = cmp::min(self.rdbuf, need);
+
+        let Poll::Ready(res) = self.pipe.push(toread) else {
+            return Poll::Ready(Ok(flushed));
+        };
+
+        
 
         Poll::Ready(Err(ByteQueueErr::Fatal))
     }
