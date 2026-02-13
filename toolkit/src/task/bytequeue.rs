@@ -1,24 +1,18 @@
 use crate::collection::deque::{ Deque };
 use crate::bytebuf::{ RawByteBuf };
-use crate::task::{ Poll };
+use crate::task::{ SendByteQueue, RecvByteQueue, Poll, ByteQueueErr };
 use crate::task::pipe::{ Pipe };
-use core::array::{ from_fn };
+use core::array::{ self };
+use core::cmp::{ self };
 
-pub enum ByteQueueErr {
+#[derive(PartialEq, Eq)]
+pub enum PipeErr {
     Fatal,
-}
-
-pub trait SendByteQueue {
-    fn send(&mut self, data: &[u8]) -> Poll<Result<usize, ByteQueueErr>>;
-}
-
-pub trait RecvByteQueue {
-    fn recv(&mut self, data: &mut [u8]) -> Poll<Result<usize, ByteQueueErr>>;
+    Timeout,
 }
 
 /*
- * implementation
- */
+ * what is that
 pub struct PipeHead<'a, P, const D: usize, const R: usize, const W: usize> {
     pipe: P,
     data: [RawByteBuf<'a>; D],
@@ -31,7 +25,7 @@ PipeHead<'a, P, D, R, W> {
     pub fn new<C>(pipe: P, databufctr: C) -> Self
     where C: FnMut(usize) -> RawByteBuf<'a> {
         Self {
-            pipe: pipe, data: from_fn(databufctr),
+            pipe: pipe, data: array::from_fn(databufctr),
             rdbuf: Deque::default(), wrbuf: Deque::default(),
         }
     }
@@ -75,9 +69,9 @@ where P: Pipe<Req=usize, Rsp=&'a [u8], Err=PipeErr> {
         }
 
         let need = data.len() - flushed;
-        let toread = cmp::min(self.rdbuf, need);
+        let toread = cmp::min(self.rdbuf.len(), need);
 
-        let Poll::Ready(res) = self.pipe.push(toread) else {
+        let Poll::Ready(res) = self.pipe.push(&mut self.data, toread) else {
             return Poll::Ready(Ok(flushed));
         };
 
@@ -112,8 +106,4 @@ where P: Pipe<Req=&'a [u8], Rsp=usize, Err=PipeErr> {
         Poll::Ready(Err(ByteQueueErr::Fatal))
     }
 }
-
-pub enum PipeErr {
-    Fatal,
-    Timeout,
-}
+*/

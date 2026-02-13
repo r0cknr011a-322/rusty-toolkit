@@ -19,3 +19,16 @@ pub trait Session {
     fn init(&mut self, arg: Self::Arg) -> Poll<Result<(), Self::Err>>;
     fn exit(&mut self) -> Poll<()>;
 }
+
+#[derive(PartialEq, Eq)]
+pub enum ByteQueueErr {
+    Fatal,
+}
+
+pub trait SendByteQueue {
+    fn send(&mut self, data: &[u8]) -> Poll<Result<usize, ByteQueueErr>>;
+}
+
+pub trait RecvByteQueue {
+    fn recv(&mut self, data: &mut [u8]) -> Poll<Result<usize, ByteQueueErr>>;
+}
