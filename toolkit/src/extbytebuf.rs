@@ -1,4 +1,4 @@
-use toolkit_unsafe::{ ByteBuf as MemByteBuf };
+use toolkit_unsafe::{ ByteBuf as ByteBufRef };
 
 pub trait ByteBuf {
     fn addr(&self) -> usize;
@@ -56,19 +56,19 @@ pub trait AtomicByteBuf {
     fn wr64_atomic(&mut self, off: usize, value: u64);
 }
 
-pub struct RawByteBuf<'a> {
-    mem: MemByteBuf<'a>,
+pub struct ExtByteBuf<'a> {
+    mem: ByteBufRef<'a>,
 }
 
-impl RawByteBuf<'_> {
+impl ExtByteBuf<'_> {
     pub fn new(addr: usize, len: usize) -> Self {
         Self {
-            mem: MemByteBuf::new(addr, len),
+            mem: ByteBufRef::new(addr, len),
         }
     }
 }
 
-impl ByteBuf for RawByteBuf<'_> {
+impl ByteBuf for ExtByteBuf<'_> {
     fn addr(&self) -> usize {
         self.mem.addr()
     }
@@ -118,7 +118,7 @@ impl ByteBuf for RawByteBuf<'_> {
     }
 }
 
-impl VolatileByteBuf for RawByteBuf<'_> {
+impl VolatileByteBuf for ExtByteBuf<'_> {
     fn rd8_volatile(&mut self, off: usize) -> u8 {
         self.mem.rd8_volatile(off)
     }
@@ -152,7 +152,7 @@ impl VolatileByteBuf for RawByteBuf<'_> {
     }
 }
 
-impl AtomicByteBuf for RawByteBuf<'_> {
+impl AtomicByteBuf for ExtByteBuf<'_> {
     #[cfg(target_has_atomic = "8")]
     fn rd8_atomic(&mut self, off: usize) -> u8 {
         self.mem.rd8_atomic(off)
