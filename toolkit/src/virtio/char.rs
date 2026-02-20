@@ -1,8 +1,8 @@
-use core::fmt::{ Write };
-use crate::runtime::{ Runtime };
-use crate::bytebuf::{ RawByteBuf, ByteBuf, VolatileByteBuf };
+use crate::extbytebuf::{ ExtByteBuf, ByteBuf, VolatileByteBuf };
 use crate::collection::deque::{ Deque };
-use crate::task::{ Session, Queue, Poll, GenRsp, GenErr };
+use crate::collection::asynque::{ Asynque, Poll };
+use crate::collection::byteblock::{ ByteBlock };
+use crate::runtime::{ LogErr };
 
 const MAGIC: usize      = 0x0000;
 const MAGIC_VAL: u32    = 0x74726976;
@@ -29,24 +29,25 @@ const STATUS_FAIL: u32      = 0x0080;
 
 const CFG_EMERG_WR: usize   = 0x0108;
 
-pub struct CharDevDrv<'a, RT> {
-    rt: RT, 
-    regbuf: RawByteBuf<'a>,
-    descbuf: RawByteBuf<'a>,
-    drvbuf: RawByteBuf<'a>,
-    devbuf: RawByteBuf<'a>,
-    databuf: Deque<Option<&'a RawByteBuf<'a>>, 4>,
+pub struct CharDev<'a, const L: usize> {
+    regbuf: ExtByteBuf<'a>,
+    descbuf: ExtByteBuf<'a>,
+    drvbuf: ExtByteBuf<'a>,
+    devbuf: ExtByteBuf<'a>,
 }
 
-impl<'a, RT>
-CharDevDrv<'a, RT>
-where RT: Runtime {
-    pub fn new(rt: RT, regbuf: RawByteBuf<'a>, // databuf: RawByteBuf<'a>,
-        descbuf: RawByteBuf<'a>, drvbuf: RawByteBuf<'a>, devbuf: RawByteBuf<'a>) -> Self {
+pub enum Error {
+    Fatal,
+}
+
+impl<'a, const L: usize> CharDev<'a, L> {
+    pub fn new(
+        regbuf: ExtByteBuf<'a>, descbuf: ExtByteBuf<'a>,
+        drvbuf: ExtByteBuf<'a>, devbuf: ExtByteBuf<'a>
+    ) -> Self {
         Self {
-            rt: rt, regbuf: regbuf,
-            descbuf: descbuf, drvbuf: drvbuf, devbuf: devbuf,
-            databuf: Deque::default(),
+            regbuf: regbuf, descbuf: descbuf,
+            drvbuf: drvbuf, devbuf: devbuf,
         }
     }
 
@@ -55,23 +56,16 @@ where RT: Runtime {
             self.regbuf.wr8_volatile(CFG_EMERG_WR, *item);
         }
     }
-}
 
-impl<'a, RT>
-Session for CharDevDrv<'a, RT>
-where RT: Runtime {
-    type Arg = ();
-    type Error = GenErr;
-
-    fn init(&mut self, arg: ()) -> Poll<Result<(), GenErr>> {
+    fn init(&mut self) -> Result<(), Error> {
         let magic = self.regbuf.rd32_volatile(MAGIC);
         if magic != MAGIC_VAL {
-            return Poll::Ready(Err(GenErr::Fatal));
+            return Err(Error::Fatal);
         }
 
         let id = self.regbuf.rd32_volatile(ID);
         if id != ID_VAL {
-            return Poll::Ready(Err(GenErr::Fatal));
+            return Err(Error::Fatal);
         }
 
         let mut status = 0;
@@ -96,41 +90,38 @@ where RT: Runtime {
 
         let status_new = self.regbuf.rd32_volatile(STATUS);
         if status_new != status {
-            return Poll::Ready(Err(GenErr::Fatal));
+            return Err(Error::Fatal);
         }
 
         status |= STATUS_DRV_OK;
         self.regbuf.wr32_volatile(STATUS, status);
 
-        Poll::Ready(Ok(()))
+        Ok(())
     }
 
-    fn exit(&mut self) -> Poll<()> {
-        Poll::Ready(())
+    fn exit(&mut self) {
+        ()
     }
 }
 
-impl<'a, RT>
-Queue for CharDevDrv<'a, RT>
-where RT: Runtime {
-    type Request = &'a RawByteBuf<'a>;
-    type Response = GenRsp;
-    type Error = GenErr;
+impl<'a, const L: usize> Asynque for CharDev<'a, L> {
+    type Req = ByteBlock<L>;
+    type Rsp = ();
+    type Err = LogErr;
 
-    fn push(&mut self, req: &'a RawByteBuf<'a>) -> Poll<Result<(), GenErr>> {
-        if self.databuf.is_full() {
-            return Poll::Pending;
-        }
-        let Some(mut logger) = self.rt.log(1) else {
-            return Poll::Ready(Err(GenErr::Fatal));
-        };
-
-        writeln!(logger, "push: new buf: {:?} {:?}", req.addr(), req.len());
-        self.databuf.push(Some(req));
-        Poll::Ready(Ok(()))
+    fn try_push(&mut self, block: ByteBlock<L>) -> Poll<Result<(), LogErr>> {
+        Poll::Ready(Err(LogErr::Fatal))
     }
 
-    fn pop(&mut self) -> Poll<Result<GenRsp, GenErr>> {
-        Poll::Ready(Ok(GenRsp::Ok))
+    fn poll_push(&mut self) -> Poll<Result<(), LogErr>> {
+        Poll::Ready(Err(LogErr::Fatal))
+    }
+
+    fn try_pop(&mut self) -> Poll<Result<(), LogErr>> {
+        Poll::Ready(Err(LogErr::Fatal))
+    }
+
+    fn poll_pop(&mut self) -> Poll<Result<(), LogErr>> {
+        Poll::Ready(Err(LogErr::Fatal))
     }
 }
