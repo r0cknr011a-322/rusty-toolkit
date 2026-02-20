@@ -1,440 +1,233 @@
 use core::fmt::{ self, Write };
 use core::cell::{ RefCell };
-use core::borrow::{ Borrow, BorrowMut };
 use core::time::{ Duration };
+use core::array::{ self };
+use core::cmp::{ self };
 use crate::collection::deque::{ Deque, DequeRefIter, DequeMutRefIter };
-use crate::cmd::{ Queue };
-use crate::bytebuf::{ RawByteBuf, ByteBuf, VolatileByteBuf, AtomicByteBuf };
+use crate::collection::byteblock::{ ByteBlock };
+use crate::collection::asynque::{ Asynque, Poll };
 
-pub trait Time {
+const SEND_RETRY_NR: u32 = 4;
+const SEND_WAIT_NR: u32  = 4;
+
+pub trait Timer {
     fn time(&mut self) -> Duration;
 }
 
-pub trait Runtime: Time {
-    fn log<'a>(&'a self, idx: usize) -> Option<impl Write>;
-    fn ipc(&self, idx: usize) -> Option<impl ByteBuf + VolatileByteBuf + AtomicByteBuf>;
-    fn dev(&self, idx: usize) -> Option<impl VolatileByteBuf>;
+pub trait Runtime: Timer + Write { }
+
+pub enum Error {
+    Fatal,
 }
 
 /*
- * log buffer buffer
- */
-// #[derive(Clone, Copy)]
-struct LogBufBuf<const L: usize, const NR: usize> {
-    deque: Deque<LogBuf<L>, NR>,
-}
-
-impl<const L: usize, const NR: usize>
-Default for LogBufBuf<L, NR> {
-    fn default() -> Self {
-        Self {
-            deque: Deque::default(),
-        }
-    }
-}
-
-impl<const L: usize, const NR: usize>
-LogBufBuf<L, NR> {
-    fn iter(&self) -> DequeRefIter<'_, LogBuf<L>> {
-        self.deque.iter()
-    }
-
-    fn iter_mut(&mut self) -> DequeMutRefIter<'_, LogBuf<L>> {
-        self.deque.iter_mut()
-    }
-}
-
-/*
- * log buffer
+ * runtime reference
  */
 #[derive(Clone, Copy)]
-struct LogBuf<const L: usize> {
-    data: Deque<u8, L>,
+struct RuntimeRef<'a, T, Q, const NR: usize, const B: usize, const L: usize>
+where Q: Asynque<Req=ByteBlock<L>> {
+    logidx: usize,
+    inner: &'a RuntimeInner<T, Q, NR, B, L>,
 }
 
-impl<const L: usize>
-Default for LogBuf<L> {
-    fn default() -> Self {
+impl<'a, T, Q, const NR: usize, const B: usize, const L: usize>
+Write for RuntimeRef<'a, T, Q, NR, B, L>
+where Q: Asynque<Req=ByteBlock<L>, Rsp=(), Err=LogErr> {
+    fn write_str(&mut self, data: &str) -> Result<(), fmt::Error> {
+        self.inner.log(data.as_bytes(), self.logidx);
+        Ok(())
+    }
+}
+
+impl<'a, T, Q, const NR: usize, const B: usize, const L: usize>
+Timer for RuntimeRef<'a, T, Q, NR, B, L>
+where T: Timer, Q: Asynque<Req=ByteBlock<L>> {
+    fn time(&mut self) -> Duration {
+        self.inner.time()
+    }
+}
+
+impl<'a, T, Q, const NR: usize, const B: usize, const L: usize>
+Runtime for RuntimeRef<'a, T, Q, NR, B, L>
+where T: Timer, Q: Asynque<Req=ByteBlock<L>, Rsp=(), Err=LogErr> {
+
+}
+
+/*
+ * runtime inner
+ */
+pub struct RuntimeInner<T, Q, const NR: usize, const B: usize, const L: usize>
+where Q: Asynque<Req=ByteBlock<L>> {
+    timer: RefCell<T>,
+    logchanbuf: RefCell<[LogBuf<B, L>; NR]>,
+    iobuf: RefCell<Q>,
+}
+
+impl<T, Q, const NR: usize, const B: usize, const L: usize>
+RuntimeInner<T, Q, NR, B, L>
+where Q: Asynque<Req=ByteBlock<L>> {
+    pub fn new(timer: T, asynque: Q) -> Self {
         Self {
-            data: Deque::default(),
+            timer: RefCell::new(timer),
+            logchanbuf: RefCell::new(array::from_fn(|_| { LogBuf::default() })),
+            iobuf: RefCell::new(asynque),
         }
     }
 }
 
-impl<const L: usize>
-fmt::Write for LogBuf<L> {
-    fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
-        if self.data.is_full() {
-            for _ in 0..s.len() {
-                self.data.pop();
+impl<T, Q, const NR: usize, const B: usize, const L: usize>
+RuntimeInner<T, Q, NR, B, L>
+where T: Timer, Q: Asynque<Req=ByteBlock<L>, Rsp=(), Err=LogErr> {
+    pub fn chan(&self, idx: usize) -> Option<impl Runtime> {
+        let Some(logidx) = self.logchanbuf.borrow().get(idx) else {
+            return None;
+        };
+        Some(RuntimeRef {
+            logidx: idx, inner: &self,
+        })
+    }
+}
+
+impl<T, Q, const NR: usize, const B: usize, const L: usize>
+RuntimeInner<T, Q, NR, B, L>
+where Q: Asynque<Req=ByteBlock<L>> {
+    fn log(&self, data: &[u8], idx: usize) {
+        let mut borrow = self.logchanbuf.borrow_mut();
+        let mut logbuf = &mut borrow[idx];
+        let mut iobuf = self.iobuf.borrow_mut();
+
+        let mut new = data.len() / L;
+        if data.len() % L > 0 {
+            new += 1;
+        }
+
+        let total = logbuf.len() + new;
+        let mut cnt = 0;
+        if total > logbuf.capacity() {
+            for block in logbuf.iter() {
+                for _ in 0..SEND_RETRY_NR {
+                    if let Poll::Ready(res) = iobuf.try_push(*block) {
+                        let Ok(()) = res else {
+                            panic!("logging failed");
+                        };
+                        break;
+                    }
+                }
+                cnt += 1;
             }
         }
-        for b in s.as_bytes() {
-            self.data.push(*b);
+
+        for _ in 0..cnt {
+            let _ = logbuf.pop();
         }
-        Ok(())
+
+        let mut ptr = 0;
+        while total - cnt < logbuf.capacity() {
+            let mut block: ByteBlock<L> = ByteBlock::default();
+            block.wr_slice(&data[ptr..]);
+            ptr += block.len();
+            for _ in 0..SEND_RETRY_NR {
+                if let Poll::Ready(res) = iobuf.try_push(block) {
+                    let Ok(()) = res else {
+                        panic!("logging failed");
+                    };
+                    cnt += 1;
+                    break;
+                }
+            }
+        }
+
+        for _ in 0..total - cnt {
+            let mut block: ByteBlock<L> = ByteBlock::default();
+            block.wr_slice(&data[ptr..]);
+            ptr += block.len();
+            logbuf.push(block);
+        }
     }
+}
+
+impl<T, Q, const NR: usize, const B: usize, const L: usize>
+RuntimeInner<T, Q, NR, B, L>
+where T: Timer, Q: Asynque<Req=ByteBlock<L>> {
+    pub fn time(&self) -> Duration {
+        self.timer.borrow_mut().time()
+    }
+}
+
+impl<T, Q, const NR: usize, const B: usize, const L: usize>
+Drop for RuntimeInner<T, Q, NR, B, L>
+where Q: Asynque<Req=ByteBlock<L>> {
+    fn drop(&mut self) {
+        let mut borrow = self.logchanbuf.borrow_mut();
+        let mut iobuf = self.iobuf.borrow_mut();
+
+        for logbuf in borrow.iter_mut() {
+            'outer: for block in logbuf.iter() {
+                for _ in 0..SEND_RETRY_NR {
+                    if let Poll::Ready(res) = iobuf.try_push(*block) {
+                        let Ok(()) = res else {
+                            break 'outer;
+                        };
+                        break;
+                    }
+                }
+            }
+        }
+
+        for _ in 0..SEND_WAIT_NR {
+            if let Poll::Ready(_) = iobuf.poll_push() {
+                return;
+            }
+        }
+    }
+}
+
+pub enum LogErr {
+    Fatal,
 }
 
 /*
- * runtime
+ * char buffer
  */
-pub struct RuntimeMain<'a, T, Q,
-const IPCBUFNR: usize, const DEVMEMNR: usize, const CHL: usize, const CHNR: usize> {
-    timer: RefCell<T>,
-    queue: RefCell<Q>,
-    logbufbuf: RefCell<LogBufBuf<CHL, CHNR>>,
-    ipcbufbuf: RefCell<Deque<RawByteBuf<'a>, IPCBUFNR>>,
-    devmembuf: RefCell<Deque<RawByteBuf<'a>, DEVMEMNR>>,
+#[derive(Default)]
+struct LogBuf<const B: usize, const L: usize> {
+    blockbuf: Deque<ByteBlock<L>, B>,
 }
 
-impl<'a, T, Q, const IPCBUFNR: usize, const DEVMEMNR: usize, const CHL: usize, const CHNR: usize>
-RuntimeMain<'a, T, Q, IPCBUFNR, DEVMEMNR, CHL, CHNR> {
-    pub fn new<I, D>(timer: T, queue: Q, mut ipcbufctr: I, mut devmemctr: D) -> Self
-    where I: FnMut(usize) -> RawByteBuf<'a>, D: FnMut(usize) -> RawByteBuf<'a> {
-        Self {
-            timer: RefCell::new(timer), queue: RefCell::new(queue),
-            logbufbuf: RefCell::new(LogBufBuf::default()),
-            ipcbufbuf: RefCell::new(Deque::new(|idx| ipcbufctr(idx))),
-            devmembuf: RefCell::new(Deque::new(|idx| devmemctr(idx))),
-        }
-    }
-}
+// impl<const L: usize> Default for CharBuf<L> {
+//     fn default() -> Self {
+//         Self {
+//             buf: Deque::default(),
+//         }
+//     }
+// }
 
-impl<'a, T, Q, const IPCBUFNR: usize, const DEVMEMNR: usize, const CHL: usize, const CHNR: usize>
-Time for &RuntimeMain<'a, T, Q, IPCBUFNR, DEVMEMNR, CHL, CHNR>
-where T: Time {
-    fn time(&mut self) -> Duration {
-        let mut timer = self.timer.borrow_mut();
-        timer.time()
-    }
-}
-
-impl<'a, T, Q, const IPCBUFNR: usize, const DEVMEMNR: usize, const CHL: usize, const CHNR: usize>
-Runtime for &'a RuntimeMain<'a, T, Q, IPCBUFNR, DEVMEMNR, CHL, CHNR>
-where T: Time {
-    fn log(&self, idx: usize) -> Option<impl Write> {
-        if let Some(_) = self.logbufbuf.borrow().iter().nth(idx) {
-            return Some(LogBufRef { idx: idx, rt: self });
-        }
-        None
+impl<const B: usize, const L: usize> LogBuf<B, L> {
+    fn push(&mut self, block: ByteBlock<L>) {
+        self.blockbuf.push(block);
     }
 
-    fn ipc(&self, idx: usize) -> Option<impl ByteBuf + VolatileByteBuf + AtomicByteBuf> {
-        if let Some(_) = self.ipcbufbuf.borrow().iter().nth(idx) {
-            return Some(IPCBufRef { idx: idx, rt: self });
-        }
-        None
+    fn pop(&mut self) -> Option<ByteBlock<L>> {
+        self.blockbuf.pop()
     }
 
-    fn dev(&self, idx: usize) -> Option<impl VolatileByteBuf> {
-        if let Some(_) = self.devmembuf.borrow().iter().nth(idx) {
-            return Some(DevMemRef { idx: idx, rt: self });
-        }
-        None
-    }
-}
-
-#[derive(Clone, Copy)]
-struct LogBufRef<'a, T, Q,
-const IPCBUFNR: usize, const DEVMEMNR: usize, const CHL: usize, const CHNR: usize> {
-    idx: usize,
-    rt: &'a RuntimeMain<'a, T, Q, IPCBUFNR, DEVMEMNR, CHL, CHNR>,
-}
-
-impl<'a, T, Q, const IPCBUFNR: usize, const DEVMEMNR: usize, const CHL: usize, const CHNR: usize>
-Write for LogBufRef<'a, T, Q, IPCBUFNR, DEVMEMNR, CHL, CHNR> {
-    fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
-        if let Some(buf) = self.rt.logbufbuf.borrow_mut().iter_mut().nth(self.idx) {
-            buf.write_str(s);
-        }
-        Ok(())
-    }
-}
-
-#[derive(Clone, Copy)]
-struct DevMemRef<'a, T, Q,
-const IPCBUFNR: usize, const DEVMEMNR: usize, const CHL: usize, const CHNR: usize> {
-    idx: usize,
-    rt: &'a RuntimeMain<'a, T, Q, IPCBUFNR, DEVMEMNR, CHL, CHNR>,
-}
-
-impl<'a, T, Q, const IPCBUFNR: usize, const DEVMEMNR: usize, const CHL: usize, const CHNR: usize>
-VolatileByteBuf for DevMemRef<'a, T, Q, IPCBUFNR, DEVMEMNR, CHL, CHNR> {
-    fn wr8_volatile(&mut self, off: usize, value: u8) {
-        let mut bufref = self.rt.devmembuf.borrow_mut();
-        if let Some(buf) = bufref.iter_mut().nth(self.idx) {
-            buf.wr8_volatile(off, value);
-        }
+    fn iter(&self) -> DequeRefIter<'_, ByteBlock<L>> {
+        self.blockbuf.iter()
     }
 
-    fn rd8_volatile(&mut self, off: usize) -> u8 {
-        let mut bufref = self.rt.devmembuf.borrow_mut();
-        let Some(bytebuf) = bufref.iter_mut().nth(self.idx) else {
-            return 0;
-        };
-        bytebuf.rd8_volatile(off)
+    fn iter_mut(&mut self) -> DequeMutRefIter<'_, ByteBlock<L>> {
+        self.blockbuf.iter_mut()
     }
 
-    fn wr16_volatile(&mut self, off: usize, value: u16) {
-        let mut bufref = self.rt.devmembuf.borrow_mut();
-        if let Some(buf) = bufref.iter_mut().nth(self.idx) {
-            buf.wr16_volatile(off, value);
-        }
-    }
-
-    fn rd16_volatile(&mut self, off: usize) -> u16 {
-        let mut bufref = self.rt.devmembuf.borrow_mut();
-        let Some(bytebuf) = bufref.iter_mut().nth(self.idx) else {
-            return 0;
-        };
-        bytebuf.rd16_volatile(off)
-    }
-
-    fn wr32_volatile(&mut self, off: usize, value: u32) {
-        let mut bufref = self.rt.devmembuf.borrow_mut();
-        if let Some(bytebuf) = bufref.iter_mut().nth(self.idx) {
-            bytebuf.wr32_volatile(off, value);
-        }
-    }
-
-    fn rd32_volatile(&mut self, off: usize) -> u32 {
-        let mut bufref = self.rt.devmembuf.borrow_mut();
-        let Some(bytebuf) = bufref.iter_mut().nth(self.idx) else {
-            return 0;
-        };
-        bytebuf.rd32_volatile(off)
-    }
-
-    fn wr64_volatile(&mut self, off: usize, value: u64) {
-        let mut bufref = self.rt.devmembuf.borrow_mut();
-        if let Some(buf) = bufref.iter_mut().nth(self.idx) {
-            buf.wr64_volatile(off, value);
-        }
-    }
-
-    fn rd64_volatile(&mut self, off: usize) -> u64 {
-        let mut bufref = self.rt.devmembuf.borrow_mut();
-        let Some(bytebuf) = bufref.iter_mut().nth(self.idx) else {
-            return 0;
-        };
-        bytebuf.rd64_volatile(off)
-    }
-}
-
-#[derive(Clone, Copy)]
-struct IPCBufRef<'a, T, Q,
-const IPCBUFNR: usize, const DEVMEMNR: usize, const CHL: usize, const CHNR: usize> {
-    idx: usize,
-    rt: &'a RuntimeMain<'a, T, Q, IPCBUFNR, DEVMEMNR, CHL, CHNR>,
-}
-
-impl<'a, T, Q, const IPCBUFNR: usize, const DEVMEMNR: usize, const CHL: usize, const CHNR: usize>
-ByteBuf for IPCBufRef<'a, T, Q, IPCBUFNR, DEVMEMNR, CHL, CHNR> {
-    fn addr(&self) -> usize {
-        let bufref = self.rt.ipcbufbuf.borrow();
-        let Some(bytebuf) = bufref.iter().nth(self.idx) else {
-            return 0;
-        };
-        bytebuf.addr()
+    fn capacity(&self) -> usize {
+        self.blockbuf.capacity()
     }
 
     fn len(&self) -> usize {
-        let bufref = self.rt.ipcbufbuf.borrow();
-        let Some(bytebuf) = bufref.iter().nth(self.idx) else {
-            return 0;
-        };
-        bytebuf.len()
+        self.blockbuf.len()
     }
 
-    fn copy_to(&mut self, off: usize, buf: &mut [u8]) {
-        let mut bufref = self.rt.ipcbufbuf.borrow_mut();
-        if let Some(bytebuf) = bufref.iter_mut().nth(self.idx) {
-            bytebuf.copy_to(off, buf);
-        }
-    }
-
-    fn copy_from(&mut self, off: usize, buf: &[u8]) {
-        let mut bufref = self.rt.ipcbufbuf.borrow_mut();
-        if let Some(bytebuf) = bufref.iter_mut().nth(self.idx) {
-            bytebuf.copy_from(off, buf);
-        }
-    }
-
-    fn wr8(&mut self, off: usize, value: u8) {
-        let mut bufref = self.rt.ipcbufbuf.borrow_mut();
-        if let Some(bytebuf) = bufref.iter_mut().nth(self.idx) {
-            bytebuf.wr8(off, value);
-        }
-    }
-
-    fn rd8(&mut self, off: usize) -> u8 {
-        let mut buf = self.rt.ipcbufbuf.borrow_mut();
-        let Some(bytebuf) = buf.iter_mut().nth(self.idx) else {
-            return 0;
-        };
-        bytebuf.rd8(off)
-    }
-
-    fn wr16(&mut self, off: usize, value: u16) {
-        if let Some(buf) = self.rt.ipcbufbuf.borrow_mut().iter_mut().nth(self.idx) {
-            buf.wr16(off, value);
-        }
-    }
-
-    fn rd16(&mut self, off: usize) -> u16 {
-        let mut buf = self.rt.ipcbufbuf.borrow_mut();
-        let Some(bytebuf) = buf.iter_mut().nth(self.idx) else {
-            return 0;
-        };
-        bytebuf.rd16(off)
-    }
-
-    fn wr32(&mut self, off: usize, value: u32) {
-        if let Some(buf) = self.rt.ipcbufbuf.borrow_mut().iter_mut().nth(self.idx) {
-            buf.wr32(off, value);
-        }
-    }
-
-    fn rd32(&mut self, off: usize) -> u32 {
-        let mut buf = self.rt.ipcbufbuf.borrow_mut();
-        let Some(bytebuf) = buf.iter_mut().nth(self.idx) else {
-            return 0;
-        };
-        bytebuf.rd32(off)
-    }
-
-    fn wr64(&mut self, off: usize, value: u64) {
-        if let Some(buf) = self.rt.ipcbufbuf.borrow_mut().iter_mut().nth(self.idx) {
-            buf.wr64(off, value);
-        }
-    }
-
-    fn rd64(&mut self, off: usize) -> u64 {
-        let mut buf = self.rt.ipcbufbuf.borrow_mut();
-        let Some(bytebuf) = buf.iter_mut().nth(self.idx) else {
-            return 0;
-        };
-        bytebuf.rd64(off)
+    fn free(&self) -> usize {
+        self.blockbuf.free()
     }
 }
-
-impl<'a, T, Q, const IPCBUFNR: usize, const DEVMEMNR: usize, const CHL: usize, const CHNR: usize>
-VolatileByteBuf for IPCBufRef<'a, T, Q, IPCBUFNR, DEVMEMNR, CHL, CHNR> {
-    fn wr8_volatile(&mut self, off: usize, value: u8) {
-        if let Some(buf) = self.rt.ipcbufbuf.borrow_mut().iter_mut().nth(self.idx) {
-            buf.wr8_volatile(off, value);
-        }
-    }
-
-    fn rd8_volatile(&mut self, off: usize) -> u8 {
-        let mut buf = self.rt.ipcbufbuf.borrow_mut();
-        let Some(bytebuf) = buf.iter_mut().nth(self.idx) else {
-            return 0;
-        };
-        bytebuf.rd8_volatile(off)
-    }
-
-    fn wr16_volatile(&mut self, off: usize, value: u16) {
-        if let Some(buf) = self.rt.ipcbufbuf.borrow_mut().iter_mut().nth(self.idx) {
-            buf.wr16_volatile(off, value);
-        }
-    }
-
-    fn rd16_volatile(&mut self, off: usize) -> u16 {
-        let mut buf = self.rt.ipcbufbuf.borrow_mut();
-        let Some(bytebuf) = buf.iter_mut().nth(self.idx) else {
-            return 0;
-        };
-        bytebuf.rd16_volatile(off)
-    }
-
-    fn wr32_volatile(&mut self, off: usize, value: u32) {
-        if let Some(buf) = self.rt.ipcbufbuf.borrow_mut().iter_mut().nth(self.idx) {
-            buf.wr32_volatile(off, value);
-        }
-    }
-
-    fn rd32_volatile(&mut self, off: usize) -> u32 {
-        let mut buf = self.rt.ipcbufbuf.borrow_mut();
-        let Some(bytebuf) = buf.iter_mut().nth(self.idx) else {
-            return 0;
-        };
-        bytebuf.rd32_volatile(off)
-    }
-
-    fn wr64_volatile(&mut self, off: usize, value: u64) {
-        if let Some(buf) = self.rt.ipcbufbuf.borrow_mut().iter_mut().nth(self.idx) {
-            buf.wr64_volatile(off, value);
-        }
-    }
-
-    fn rd64_volatile(&mut self, off: usize) -> u64 {
-        let mut buf = self.rt.ipcbufbuf.borrow_mut();
-        let Some(bytebuf) = buf.iter_mut().nth(self.idx) else {
-            return 0;
-        };
-        bytebuf.rd64_volatile(off)
-    }
-}
-
-impl<'a, T, Q, const IPCBUFNR: usize, const DEVMEMNR: usize, const CHL: usize, const CHNR: usize>
-AtomicByteBuf for IPCBufRef<'a, T, Q, IPCBUFNR, DEVMEMNR, CHL, CHNR> {
-    fn wr8_atomic(&mut self, off: usize, value: u8) {
-        if let Some(buf) = self.rt.ipcbufbuf.borrow_mut().iter_mut().nth(self.idx) {
-            buf.wr8_atomic(off, value);
-        }
-    }
-
-    fn rd8_atomic(&mut self, off: usize) -> u8 {
-        let mut buf = self.rt.ipcbufbuf.borrow_mut();
-        let Some(bytebuf) = buf.iter_mut().nth(self.idx) else {
-            return 0;
-        };
-        bytebuf.rd8_atomic(off)
-    }
-
-    fn wr16_atomic(&mut self, off: usize, value: u16) {
-        if let Some(buf) = self.rt.ipcbufbuf.borrow_mut().iter_mut().nth(self.idx) {
-            buf.wr16_atomic(off, value);
-        }
-    }
-
-    fn rd16_atomic(&mut self, off: usize) -> u16 {
-        let mut buf = self.rt.ipcbufbuf.borrow_mut();
-        let Some(bytebuf) = buf.iter_mut().nth(self.idx) else {
-            return 0;
-        };
-        bytebuf.rd16_atomic(off)
-    }
-
-    fn wr32_atomic(&mut self, off: usize, value: u32) {
-        if let Some(buf) = self.rt.ipcbufbuf.borrow_mut().iter_mut().nth(self.idx) {
-            buf.wr32_atomic(off, value);
-        }
-    }
-
-    fn rd32_atomic(&mut self, off: usize) -> u32 {
-        let mut buf = self.rt.ipcbufbuf.borrow_mut();
-        let Some(bytebuf) = buf.iter_mut().nth(self.idx) else {
-            return 0;
-        };
-        bytebuf.rd32_atomic(off)
-    }
-
-    fn wr64_atomic(&mut self, off: usize, value: u64) {
-        if let Some(buf) = self.rt.ipcbufbuf.borrow_mut().iter_mut().nth(self.idx) {
-            buf.wr64_atomic(off, value);
-        }
-    }
-
-    fn rd64_atomic(&mut self, off: usize) -> u64 {
-        let mut buf = self.rt.ipcbufbuf.borrow_mut();
-        let Some(bytebuf) = buf.iter_mut().nth(self.idx) else {
-            return 0;
-        };
-        bytebuf.rd64_atomic(off)
-    }
-}
-
-

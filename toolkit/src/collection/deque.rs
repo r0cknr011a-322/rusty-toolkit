@@ -119,14 +119,14 @@ Deque<I, LEN> {
         first.len() + second.len()
     }
 
-    fn as_slices(&self) -> (&[I], &[I]) {
+    pub fn as_slices(&self) -> (&[I], &[I]) {
         let (left, right) = self.slice_ranges();
         let (left_left, left_right) = self.buf.split_at(left.end);
         let (_, right_right) = left_right.split_at(right.start);
         (left_left, right_right)
     }
 
-    fn as_mut_slices(&mut self) -> (&mut [I], &mut [I]) {
+    pub fn as_mut_slices(&mut self) -> (&mut [I], &mut [I]) {
         let (left, right) = self.slice_ranges();
         let (left_left, left_right) = self.buf.split_at_mut(left.end);
         let (_, right_right) = left_right.split_at_mut(right.start);
