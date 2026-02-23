@@ -1,47 +1,42 @@
 use core::fmt::{ self };
 use core::time::{ Duration };
 
-use crate::collection::byteblock::{ ByteBlock };
-use crate::collection::asynque::{ Asynque };
-use crate::runtime::{ Timer, Runtime, RuntimeInner, LogErr };
+use crate::runtime::{ Timer, Runtime, RuntimeInner };
 
 
 #[derive(Clone, Copy)]
-pub struct RuntimeRef<'a, T, Q, const NR: usize, const B: usize, const L: usize>
-where T: Timer, Q: Asynque<Req=ByteBlock<L>, Rsp=(), Err=LogErr> {
+pub struct RuntimeRef<'a, T, const NR: usize, const L: usize> {
     logidx: usize,
-    inner: &'a RuntimeInner<T, Q, NR, B, L>,
+    inner: &'a RuntimeInner<T, NR, L>,
 }
 
-impl<'a, T, Q, const NR: usize, const B: usize, const L: usize>
-RuntimeRef<'a, T, Q, NR, B, L>
-where T: Timer, Q: Asynque<Req=ByteBlock<L>, Rsp=(), Err=LogErr> {
-    pub fn new(logidx: usize, inner: &'a RuntimeInner<T, Q, NR, B, L>) -> Self {
+impl<'a, T, const NR: usize, const L: usize>
+RuntimeRef<'a, T, NR, L> {
+    pub fn new(logidx: usize, inner: &'a RuntimeInner<T, NR, L>) -> Self {
         Self {
             logidx: logidx, inner: inner,
         }
     }
 }
 
-impl<'a, T, Q, const NR: usize, const B: usize, const L: usize>
-fmt::Write for RuntimeRef<'a, T, Q, NR, B, L>
-where T: Timer, Q: Asynque<Req=ByteBlock<L>, Rsp=(), Err=LogErr> {
+impl<'a, T, const NR: usize, const L: usize>
+fmt::Write for RuntimeRef<'a, T, NR, L> {
     fn write_str(&mut self, data: &str) -> Result<(), fmt::Error> {
         self.inner.log(data.as_bytes(), self.logidx);
         Ok(())
     }
 }
 
-impl<'a, T, Q, const NR: usize, const B: usize, const L: usize>
-Timer for RuntimeRef<'a, T, Q, NR, B, L>
-where T: Timer, Q: Asynque<Req=ByteBlock<L>, Rsp=(), Err=LogErr> {
+impl<'a, T, const NR: usize, const L: usize>
+Timer for RuntimeRef<'a, T, NR, L>
+where T: Timer {
     fn time(&mut self) -> Duration {
         self.inner.time()
     }
 }
 
-impl<'a, T, Q, const NR: usize, const B: usize, const L: usize>
-Runtime for RuntimeRef<'a, T, Q, NR, B, L>
-where T: Timer, Q: Asynque<Req=ByteBlock<L>, Rsp=(), Err=LogErr> {
+impl<'a, T, const NR: usize, const L: usize>
+Runtime for RuntimeRef<'a, T, NR, L>
+where T: Timer {
 
 }
