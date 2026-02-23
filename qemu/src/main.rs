@@ -9,7 +9,7 @@ use toolkit::extbytebuf::{ ExtByteBuf, VolatileByteBuf };
 use toolkit::uart16550::{ Uart16550 };
 
 use core::arch::global_asm;
-global_asm!(include_str!("trap.S"));
+global_asm!(include_str!("trap.s"));
 
 struct VirtTimer { }
 
@@ -22,7 +22,7 @@ impl Timer for VirtTimer {
 const BYTE_BLOCK_LEN: usize = 0x0400;
 
 #[unsafe(no_mangle)]
-pub extern "C" fn main() -> ! {
+pub extern "C" fn main() {
     let uart = Uart16550::new(ExtByteBuf::new(0x1000_0000, 8));
 
     let runtime = RuntimeInner::<VirtTimer, Uart16550<BYTE_BLOCK_LEN>, 4, 4, BYTE_BLOCK_LEN>::new(
@@ -34,8 +34,6 @@ pub extern "C" fn main() -> ! {
     };
 
     writeln!(log0, "hello world!!!");
-
-    loop { }
 }
 
 #[panic_handler]

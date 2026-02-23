@@ -4,4 +4,7 @@
 reset_trap:
     li sp, 0x80080000
     call main
-    ret
+
+sleep:
+    wfi
+    j sleep
