@@ -2,7 +2,7 @@ use crate::extbytebuf::{ ExtByteBuf, ByteBuf, VolatileByteBuf };
 use crate::collection::deque::{ Deque };
 use crate::collection::asynque::{ Asynque, Poll };
 use crate::collection::byteblock::{ ByteBlock };
-use crate::runtime::{ LogErr };
+use crate::io::{ Error as IOErr };
 
 const MAGIC: usize      = 0x0000;
 const MAGIC_VAL: u32    = 0x74726976;
@@ -28,6 +28,7 @@ const STATUS_RESET: u32     = 0x0040;
 const STATUS_FAIL: u32      = 0x0080;
 
 const CFG_EMERG_WR: usize   = 0x0108;
+
 
 pub struct CharDev<'a, const L: usize> {
     regbuf: ExtByteBuf<'a>,
@@ -107,21 +108,21 @@ impl<'a, const L: usize> CharDev<'a, L> {
 impl<'a, const L: usize> Asynque for CharDev<'a, L> {
     type Req = ByteBlock<L>;
     type Rsp = ();
-    type Err = LogErr;
+    type Err = IOErr;
 
-    fn try_push(&mut self, block: ByteBlock<L>) -> Poll<Result<(), LogErr>> {
-        Poll::Ready(Err(LogErr::Fatal))
+    fn try_push(&mut self, block: ByteBlock<L>) -> Poll<Result<(), IOErr>> {
+        Poll::Ready(Err(IOErr::Fatal))
     }
 
-    fn poll_push(&mut self) -> Poll<Result<(), LogErr>> {
-        Poll::Ready(Err(LogErr::Fatal))
+    fn poll_push(&mut self) -> Poll<Result<(), IOErr>> {
+        Poll::Ready(Err(IOErr::Fatal))
     }
 
-    fn try_pop(&mut self) -> Poll<Result<(), LogErr>> {
-        Poll::Ready(Err(LogErr::Fatal))
+    fn try_pop(&mut self) -> Poll<Result<(), IOErr>> {
+        Poll::Ready(Err(IOErr::Fatal))
     }
 
-    fn poll_pop(&mut self) -> Poll<Result<(), LogErr>> {
-        Poll::Ready(Err(LogErr::Fatal))
+    fn poll_pop(&mut self) -> Poll<Result<(), IOErr>> {
+        Poll::Ready(Err(IOErr::Fatal))
     }
 }

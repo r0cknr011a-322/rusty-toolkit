@@ -1,14 +1,11 @@
 #[cfg(test)]
 mod test;
 
-mod rtref;
-
 use core::fmt::{ self };
 use core::cell::{ RefCell };
 use core::time::{ Duration };
 use core::array::{ self };
 
-use crate::runtime::rtref::{ RuntimeRef };
 use crate::collection::deque::{ Deque, DequeRefIter, DequeMutRefIter };
 
 
@@ -33,6 +30,57 @@ RuntimeInner<T, NR, L> {
             logbuf: RefCell::new(array::from_fn(|_| { Deque::default() })),
         }
     }
+
+    fn wr_log(&self, data: &[u8], idx: usize) {
+        let mut borrow = self.logbuf.borrow_mut();
+        let logbuf = &mut borrow[idx];
+
+        if data.len() > logbuf.free() {
+            panic!("logger buffer (channel: {idx}) overflow");
+        }
+
+        let (bufl, bufr) = logbuf.as_mut_slices();
+        if data.len() <= bufl.len() {
+            let (tocopy, _) = bufl.split_at_mut(data.len());
+            tocopy.copy_from_slice(data);
+            return;
+        }
+
+        let (datal, datar) = data.split_at(bufl.len());
+        bufl.copy_from_slice(datal);
+
+        let (tocopy, _) = bufr.split_at_mut(datar.len());
+        tocopy.copy_from_slice(datar);
+    }
+
+    pub fn rd_log(&self, data: &mut [u8], idx: usize) -> usize {
+        let mut borrow = self.logbuf.borrow_mut();
+        let logbuf = &mut borrow[idx];
+
+        let len = logbuf.len();
+        let (bufl, bufr) = logbuf.as_mut_slices();
+
+        if data.len() > len {
+            let (datal, datar) = data.split_at_mut(bufl.len());
+            datal.copy_from_slice(bufl);
+            let (tocopy, _) = datar.split_at_mut(bufr.len());
+            tocopy.copy_from_slice(bufr);
+            return len;
+        }
+
+        if data.len() < bufl.len() {
+            let (fromcopy, _) = bufl.split_at(data.len());
+            data.copy_from_slice(fromcopy);
+            return data.len();
+        }
+
+        let (datal, datar) = data.split_at_mut(bufl.len());
+        datal.copy_from_slice(bufl);
+        let (fromcopy, _) = bufr.split_at(datar.len());
+        datar.copy_from_slice(fromcopy);
+
+        data.len()
+    }
 }
 
 impl<T, const NR: usize, const L: usize>
@@ -50,50 +98,40 @@ where T: Timer {
     }
 }
 
-impl<T, const NR: usize, const L: usize>
-RuntimeInner<T, NR, L> {
-    fn log(&self, data: &[u8], idx: usize) {
-        /*
-        let mut borrow = self.logchanbuf.borrow_mut();
-        let logbuf = &mut borrow[idx];
-        let mut iochan = self.iobuf.borrow_mut();
 
-        let mut new = data.len() / L;
-        if data.len() % L > 0 {
-            new += 1;
-        }
+#[derive(Clone, Copy)]
+pub struct RuntimeRef<'a, T, const NR: usize, const L: usize> {
+    logidx: usize,
+    inner: &'a RuntimeInner<T, NR, L>,
+}
 
-        let total = logbuf.len() + new;
-        let mut cnt = 0;
-        if total > logbuf.capacity() {
-            let Ok(sent) = Self::flush(logbuf, &mut iochan) else {
-                panic!("logging failed");
-            };
-            cnt += sent;
+impl<'a, T, const NR: usize, const L: usize>
+RuntimeRef<'a, T, NR, L> {
+    pub fn new(logidx: usize, inner: &'a RuntimeInner<T, NR, L>) -> Self {
+        Self {
+            logidx: logidx, inner: inner,
         }
-
-        let mut ptr = 0;
-        while total - cnt > logbuf.capacity() {
-            let mut block: ByteBlock<L> = ByteBlock::default();
-            block.wr_slice(&data[ptr..]);
-            ptr += block.len();
-            for _ in 0..SEND_RETRY_NR {
-                if let Poll::Ready(res) = iochan.try_push(block) {
-                    let Ok(()) = res else {
-                        panic!("logging failed");
-                    };
-                    cnt += 1;
-                    break;
-                }
-            }
-        }
-
-        for _ in 0..total - cnt {
-            let mut block: ByteBlock<L> = ByteBlock::default();
-            block.wr_slice(&data[ptr..]);
-            ptr += block.len();
-            logbuf.push(block);
-        }
-        */
     }
+}
+
+impl<'a, T, const NR: usize, const L: usize>
+fmt::Write for RuntimeRef<'a, T, NR, L> {
+    fn write_str(&mut self, data: &str) -> Result<(), fmt::Error> {
+        self.inner.wr_log(data.as_bytes(), self.logidx);
+        Ok(())
+    }
+}
+
+impl<'a, T, const NR: usize, const L: usize>
+Timer for RuntimeRef<'a, T, NR, L>
+where T: Timer {
+    fn time(&mut self) -> Duration {
+        self.inner.time()
+    }
+}
+
+impl<'a, T, const NR: usize, const L: usize>
+Runtime for RuntimeRef<'a, T, NR, L>
+where T: Timer {
+
 }
