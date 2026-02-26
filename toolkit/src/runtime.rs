@@ -31,6 +31,8 @@ RuntimeInner<T, NR, L> {
         }
     }
 
+    
+
     fn wr_log(&self, data: &[u8], idx: usize) {
         let mut borrow = self.logbuf.borrow_mut();
         let logbuf = &mut borrow[idx];
@@ -39,18 +41,9 @@ RuntimeInner<T, NR, L> {
             panic!("logger buffer (channel: {idx}) overflow");
         }
 
-        let (bufl, bufr) = logbuf.as_mut_slices();
-        if data.len() <= bufl.len() {
-            let (tocopy, _) = bufl.split_at_mut(data.len());
-            tocopy.copy_from_slice(data);
-            return;
+        for b in data {
+            logbuf.push(*b);
         }
-
-        let (datal, datar) = data.split_at(bufl.len());
-        bufl.copy_from_slice(datal);
-
-        let (tocopy, _) = bufr.split_at_mut(datar.len());
-        tocopy.copy_from_slice(datar);
     }
 
     pub fn rd_log(&self, data: &mut [u8], idx: usize) -> usize {
@@ -58,28 +51,32 @@ RuntimeInner<T, NR, L> {
         let logbuf = &mut borrow[idx];
 
         let len = logbuf.len();
-        let (bufl, bufr) = logbuf.as_mut_slices();
+        let (bufl, bufr) = logbuf.as_slices();
 
+        let mut cnt = 0;
         if data.len() > len {
             let (datal, datar) = data.split_at_mut(bufl.len());
             datal.copy_from_slice(bufl);
             let (tocopy, _) = datar.split_at_mut(bufr.len());
             tocopy.copy_from_slice(bufr);
-            return len;
-        }
-
-        if data.len() < bufl.len() {
+            cnt = len;
+        } else if data.len() > bufl.len() {
+            let (datal, datar) = data.split_at_mut(bufl.len());
+            datal.copy_from_slice(bufl);
+            let (fromcopy, _) = bufr.split_at(datar.len());
+            datar.copy_from_slice(fromcopy);
+            cnt = data.len();
+        } else {
             let (fromcopy, _) = bufl.split_at(data.len());
             data.copy_from_slice(fromcopy);
-            return data.len();
+            cnt = data.len();
         }
 
-        let (datal, datar) = data.split_at_mut(bufl.len());
-        datal.copy_from_slice(bufl);
-        let (fromcopy, _) = bufr.split_at(datar.len());
-        datar.copy_from_slice(fromcopy);
+        for _ in 0..cnt {
+            let _ = logbuf.pop();
+        }
 
-        data.len()
+        cnt
     }
 }
 
@@ -111,6 +108,12 @@ RuntimeRef<'a, T, NR, L> {
         Self {
             logidx: logidx, inner: inner,
         }
+    }
+
+    pub(crate) fn len(&self, idx: usize) -> usize {
+        let borrow = self.logbuf.borrow_mut();
+        let logbuf = &borrow[idx];
+        logbuf.len()
     }
 }
 

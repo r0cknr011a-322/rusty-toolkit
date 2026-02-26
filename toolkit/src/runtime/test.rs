@@ -79,9 +79,18 @@ fn log() {
 
     for (idx, item) in itembuf.iter_mut().enumerate() {
         item.log();
+        assert_eq!(rt.chan_len(idx), LOG.len());
 
         let mut databuf: [u8; 256] = array::from_fn(|_| 0);
+        let mut total = 0;
+        for _ in 0..LOG.len() / databuf.len() {
+            let cnt = rt.rd_log(&mut databuf, idx);
+            assert_eq!(cnt, databuf.len());
+            total += cnt;
+            assert_eq!(rt.chan_len(idx), LOG.len() - total);
+        }
+
         let cnt = rt.rd_log(&mut databuf, idx);
-        assert_eq!(cnt, 0);
+        assert_eq!(cnt, LOG.len() % databuf.len());
     }
 }
