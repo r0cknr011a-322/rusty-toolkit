@@ -4,9 +4,6 @@ pub struct BitMask32 {
 
 impl BitMask32 {
     pub const fn mask(high: u32, low: u32) -> Self {
-        if low > high {
-            panic!("mask low bit edge must be less than high edge");
-        }
         Self {
             mask: ((1 << (high - low + 1)) - 1) << low,
         }
@@ -21,9 +18,6 @@ impl BitMask32 {
     }
 
     pub const fn set(&self, mut value: u32, mut set: u32) -> u32 {
-        if set > self.mask >> self.mask.leading_zeros() {
-            panic!("set value will be truncated");
-        }
         value &= !self.mask;
         set &= self.mask >> self.mask.leading_zeros();
         value | (set << self.mask.leading_zeros())
