@@ -14,12 +14,12 @@ impl BitMask32 {
     }
 
     pub const fn get(&self, value: u32) -> u32 {
-        (value & self.mask) >> self.mask.leading_zeros()
+        (value & self.mask) >> self.mask.trailing_zeros()
     }
 
     pub const fn set(&self, mut value: u32, mut set: u32) -> u32 {
         value &= !self.mask;
-        set &= self.mask >> self.mask.leading_zeros();
-        value | (set << self.mask.leading_zeros())
+        set &= self.mask >> self.mask.trailing_zeros();
+        value | (set << self.mask.trailing_zeros())
     }
 }
