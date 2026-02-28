@@ -3,6 +3,7 @@
 
 pub mod collection;
 pub mod extbytebuf;
+pub mod bitmask;
 pub mod bytechan;
 pub mod runtime;
 
