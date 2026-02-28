@@ -31,9 +31,7 @@ RuntimeInner<T, NR, L> {
         }
     }
 
-    
-
-    fn wr_log(&self, data: &[u8], idx: usize) {
+    pub fn wr_log(&self, idx: usize, data: &[u8]) {
         let mut borrow = self.logbuf.borrow_mut();
         let logbuf = &mut borrow[idx];
 
@@ -46,7 +44,7 @@ RuntimeInner<T, NR, L> {
         }
     }
 
-    pub fn rd_log(&self, data: &mut [u8], idx: usize) -> usize {
+    pub fn rd_log(&self, idx: usize, data: &mut [u8]) -> usize {
         let mut borrow = self.logbuf.borrow_mut();
         let logbuf = &mut borrow[idx];
 
@@ -77,6 +75,19 @@ RuntimeInner<T, NR, L> {
         }
 
         cnt
+    }
+
+    fn chan_len(&self, idx: usize) -> usize {
+        let borrow = self.logbuf.borrow();
+        let logbuf = &borrow[idx];
+        logbuf.len()
+    }
+
+    fn chan_slices_len(&self, idx: usize) -> (usize, usize) {
+        let borrow = self.logbuf.borrow();
+        let logbuf = &borrow[idx];
+        let (bufl, bufr) = logbuf.as_slices();
+        (bufl.len(), bufr.len())
     }
 }
 
@@ -109,18 +120,12 @@ RuntimeRef<'a, T, NR, L> {
             logidx: logidx, inner: inner,
         }
     }
-
-    pub(crate) fn len(&self, idx: usize) -> usize {
-        let borrow = self.logbuf.borrow_mut();
-        let logbuf = &borrow[idx];
-        logbuf.len()
-    }
 }
 
 impl<'a, T, const NR: usize, const L: usize>
 fmt::Write for RuntimeRef<'a, T, NR, L> {
     fn write_str(&mut self, data: &str) -> Result<(), fmt::Error> {
-        self.inner.wr_log(data.as_bytes(), self.logidx);
+        self.inner.wr_log(self.logidx, data.as_bytes());
         Ok(())
     }
 }

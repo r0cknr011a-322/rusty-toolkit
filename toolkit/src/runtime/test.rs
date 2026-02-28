@@ -16,7 +16,7 @@ impl Timer for TestTimer {
     }
 }
 
-const LOG: &str = r#"
+const MSG: &str = r#"
 Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
 incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis
 nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
@@ -38,7 +38,7 @@ where R: Runtime {
     }
 
     fn log(&mut self) {
-        write!(self.rt, "{}", LOG);
+        write!(self.rt, "{}", MSG);
     }
 }
 
@@ -79,18 +79,23 @@ fn log() {
 
     for (idx, item) in itembuf.iter_mut().enumerate() {
         item.log();
-        assert_eq!(rt.chan_len(idx), LOG.len());
+        assert_eq!(rt.chan_len(idx), MSG.len());
+        assert_eq!((0, 0), rt.chan_slices_len(idx));
 
-        let mut databuf: [u8; 256] = array::from_fn(|_| 0);
+        let mut databuf: [u8; 128] = array::from_fn(|_| 0);
         let mut total = 0;
-        for _ in 0..LOG.len() / databuf.len() {
-            let cnt = rt.rd_log(&mut databuf, idx);
+
+        for _ in 0..MSG.len() / databuf.len() {
+            let cnt = rt.rd_log(idx, &mut databuf);
             assert_eq!(cnt, databuf.len());
+
             total += cnt;
-            assert_eq!(rt.chan_len(idx), LOG.len() - total);
+            assert_eq!(rt.chan_len(idx), MSG.len() - total);
         }
 
-        let cnt = rt.rd_log(&mut databuf, idx);
-        assert_eq!(cnt, LOG.len() % databuf.len());
+        assert_eq!((0, 0), rt.chan_slices_len(idx));
+
+        let cnt = rt.rd_log(idx, &mut databuf);
+        assert_eq!(cnt, MSG.len() % databuf.len());
     }
 }

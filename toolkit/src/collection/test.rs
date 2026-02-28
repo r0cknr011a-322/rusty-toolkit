@@ -1,18 +1,19 @@
+use core::array::{ self };
+
 use crate::collection::deque::{ Deque };
+
 
 const ITEMNR: usize = 13;
 
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
 struct TestItem {
-    id: u64,
     data: u64,
 }
 
 impl TestItem {
-    fn new(data: u8) -> Self {
+    fn new(data: u64) -> Self {
         Self {
-            id: 0x1BAD_C0DE_0000_0000 | data as u64,
-            data: 0x2BAD_C0DE_0000_0000 | data as u64,
+            data: data,
         }
     }
 }
@@ -20,9 +21,7 @@ impl TestItem {
 #[test]
 fn queue_push_pop() {
     // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C ]
-    let buf: [TestItem; ITEMNR] = core::array::from_fn(
-        |i| TestItem::new(i.try_into().unwrap())
-    );
+    let buf: [TestItem; ITEMNR] = array::from_fn(|i| TestItem::new(i as u64));
 
     let mut deque = Deque::<TestItem, ITEMNR>::default();
     assert_eq!(deque.capacity(), ITEMNR);
@@ -118,9 +117,7 @@ fn queue_push_pop() {
 #[test]
 fn queue_into_iter() {
     // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C ]
-    let buf: [TestItem; ITEMNR] = core::array::from_fn(
-        |i| TestItem::new(i.try_into().unwrap())
-    );
+    let buf: [TestItem; ITEMNR] = array::from_fn(|i| TestItem::new(i as u64));
 
     let mut deque = Deque::<TestItem, ITEMNR>::default();
 
@@ -253,9 +250,7 @@ fn queue_into_iter() {
 #[test]
 fn queue_from_iter() {
     // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C ]
-    let buf: [TestItem; ITEMNR] = core::array::from_fn(
-        |i| TestItem::new(i.try_into().unwrap())
-    );
+    let buf: [TestItem; ITEMNR] = array::from_fn(|i| TestItem::new(i as u64));
 
     let deque: Deque<TestItem, ITEMNR> = buf
         .into_iter()
@@ -270,9 +265,7 @@ fn queue_from_iter() {
 #[test]
 fn queue_equals() {
     // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C ]
-    let buf: [TestItem; ITEMNR] = core::array::from_fn(|i|
-        TestItem::new(i.try_into().unwrap())
-    );
+    let buf: [TestItem; ITEMNR] = array::from_fn(|i| TestItem::new(i as u64));
 
     let mut ldeque = Deque::<TestItem, ITEMNR>::default();
     for i in 0..10 {
@@ -310,4 +303,22 @@ fn queue_equals() {
 
     assert_eq!(ldeque, rdeque);
     assert_eq!(rdeque, ldeque);
+}
+
+#[test]
+fn queue_iter() {
+    // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C ]
+    let buf: [TestItem; ITEMNR] = array::from_fn(|i| TestItem::new(i as u64));
+
+    let mut deque = Deque::<TestItem, ITEMNR>::default();
+
+    for item in &buf[..8] {
+        deque.push(*item);
+    }
+
+    assert_eq!(deque.len(), 8);
+
+    for (idx, item) in deque.iter().enumerate() {
+        assert_eq!(*item, buf[idx]);
+    }
 }
