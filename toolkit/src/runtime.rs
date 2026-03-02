@@ -76,19 +76,6 @@ RuntimeInner<T, NR, L> {
 
         cnt
     }
-
-    fn chan_len(&self, idx: usize) -> usize {
-        let borrow = self.logbuf.borrow();
-        let logbuf = &borrow[idx];
-        logbuf.len()
-    }
-
-    fn chan_slices_len(&self, idx: usize) -> (usize, usize) {
-        let borrow = self.logbuf.borrow();
-        let logbuf = &borrow[idx];
-        let (bufl, bufr) = logbuf.as_slices();
-        (bufl.len(), bufr.len())
-    }
 }
 
 impl<T, const NR: usize, const L: usize>
@@ -103,6 +90,14 @@ where T: Timer {
             return None;
         };
         Some(RuntimeRef::new(idx, self))
+    }
+
+    fn chan_len(&self, idx: usize) -> Option<usize> {
+        let borrow = self.logbuf.borrow();
+        let Some(buf) = borrow.get(idx) else {
+            return None;
+        };
+        Some(buf.len())
     }
 }
 

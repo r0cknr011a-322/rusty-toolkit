@@ -119,17 +119,19 @@ impl<I, const LEN: usize> Deque<I, LEN> {
     }
 
     pub fn as_slices(&self) -> (&[I], &[I]) {
-        let (left, right) = self.slice_ranges();
-        let (left_left, left_right) = self.buf.split_at(left.end);
-        let (_, right_right) = left_right.split_at(right.start);
-        (left_left, right_right)
+        let (first_rng, second_rng) = self.slice_ranges();
+        let (tail_to_start, head_to_end) = self.buf.split_at(first_rng.start);
+        let (first, _) = head_to_end.split_at(first_rng.len());
+        let (second, _) = tail_to_start.split_at(second_rng.end);
+        (first, second)
     }
 
     pub fn as_mut_slices(&mut self) -> (&mut [I], &mut [I]) {
-        let (left, right) = self.slice_ranges();
-        let (left_left, left_right) = self.buf.split_at_mut(left.end);
-        let (_, right_right) = left_right.split_at_mut(right.start);
-        (left_left, right_right)
+        let (first_rng, second_rng) = self.slice_ranges();
+        let (tail_to_start, head_to_end) = self.buf.split_at_mut(first_rng.start);
+        let (first, _) = head_to_end.split_at_mut(first_rng.len());
+        let (second, _) = tail_to_start.split_at_mut(second_rng.end);
+        (first, second)
     }
 
     pub fn is_full(&self) -> bool {
@@ -159,8 +161,7 @@ impl<I, const LEN: usize> Deque<I, LEN> {
     }
 }
 
-impl<I, const L: usize>
-Deque<I, L>
+impl<I, const L: usize> Deque<I, L>
 where I: Copy {
     pub fn push(&mut self, item: I) {
         if self.is_full() {

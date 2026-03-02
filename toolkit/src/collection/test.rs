@@ -5,7 +5,7 @@ use crate::collection::deque::{ Deque };
 
 const ITEMNR: usize = 13;
 
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
 struct TestItem {
     data: u64,
 }
@@ -305,14 +305,43 @@ fn queue_equals() {
     assert_eq!(rdeque, ldeque);
 }
 
+const TEST_BUF_UPDATE_VALUE: u64 = 64;
+
 #[test]
 fn queue_iter() {
     // [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C ]
-    let buf: [TestItem; ITEMNR] = array::from_fn(|i| TestItem::new(i as u64));
+    let buf: [TestItem; ITEMNR] = array::from_fn(
+        |i| TestItem::new(i as u64)
+    );
+    let buf_update: [TestItem; ITEMNR] = array::from_fn(
+        |i| TestItem::new(buf[i].data + TEST_BUF_UPDATE_VALUE)
+    );
 
     let mut deque = Deque::<TestItem, ITEMNR>::default();
 
-    for item in &buf[..8] {
+    /* empty item capacity */
+    let mut empty = deque.iter();
+    assert_eq!(empty.next(), None);
+    assert_eq!(empty.next(), None);
+    assert_eq!(empty.next(), None);
+    assert_eq!(empty.next(), None);
+    assert_eq!(empty.next_back(), None);
+    assert_eq!(empty.next_back(), None);
+    assert_eq!(empty.next_back(), None);
+    assert_eq!(empty.next_back(), None);
+
+    let mut empty = deque.iter_mut();
+    assert_eq!(empty.next(), None);
+    assert_eq!(empty.next(), None);
+    assert_eq!(empty.next(), None);
+    assert_eq!(empty.next(), None);
+    assert_eq!(empty.next_back(), None);
+    assert_eq!(empty.next_back(), None);
+    assert_eq!(empty.next_back(), None);
+    assert_eq!(empty.next_back(), None);
+
+    /* partial item capacity */
+    for item in &buf[0..8] {
         deque.push(*item);
     }
 
@@ -320,5 +349,77 @@ fn queue_iter() {
 
     for (idx, item) in deque.iter().enumerate() {
         assert_eq!(*item, buf[idx]);
+    }
+
+    for (idx, item) in deque.iter_mut().enumerate() {
+        assert_eq!(*item, buf[idx]);
+    }
+
+    for item in deque.iter_mut() {
+        item.data += TEST_BUF_UPDATE_VALUE;
+    }
+
+    for (idx, item) in deque.iter().enumerate() {
+        assert_eq!(*item, buf_update[idx]);
+    }
+
+    for _ in 0..8 {
+        let _ = deque.pop();
+    }
+
+    assert_eq!(deque.len(), 0);
+
+    /* partial item capacity with overdraw */
+    for item in &buf[0..8] {
+        deque.push(*item);
+    }
+
+    assert_eq!(deque.len(), 8);
+
+    for (idx, item) in deque.iter().enumerate() {
+        assert_eq!(*item, buf[idx]);
+    }
+
+    for (idx, item) in deque.iter_mut().enumerate() {
+        assert_eq!(*item, buf[idx]);
+    }
+
+    for item in deque.iter_mut() {
+        item.data += TEST_BUF_UPDATE_VALUE;
+    }
+
+    for (idx, item) in deque.iter().enumerate() {
+        assert_eq!(*item, buf_update[idx]);
+    }
+
+    for item in deque.iter_mut() {
+        item.data -= TEST_BUF_UPDATE_VALUE;
+    }
+
+    /* partial item capacity with overdraw */
+    for item in &buf[8..] {
+        deque.push(*item);
+    }
+
+    assert_eq!(deque.len(), buf.len());
+
+    for item in &buf[5..10] {
+        deque.push(*item);
+    }
+
+    for (idx, item) in deque.iter().enumerate() {
+        assert_eq!(*item, buf[idx]);
+    }
+
+    for (idx, item) in deque.iter_mut().enumerate() {
+        assert_eq!(*item, buf[idx]);
+    }
+
+    for item in deque.iter_mut() {
+        item.data += TEST_BUF_UPDATE_VALUE;
+    }
+
+    for (idx, item) in deque.iter().enumerate() {
+        assert_eq!(*item, buf_update[idx]);
     }
 }
