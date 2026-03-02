@@ -5,8 +5,10 @@ pub mod collection;
 pub mod extbytebuf;
 pub mod bytechan;
 pub mod runtime;
+pub mod io;
 
-// pub mod virtio;
+pub mod uart16550;
+pub mod virtio;
 
 // pub mod ip;
 
