@@ -351,6 +351,10 @@ fn queue_iter() {
         assert_eq!(*item, buf[idx]);
     }
 
+    for (idx, item) in deque.iter().rev().enumerate() {
+        assert_eq!(*item, buf[7 - idx]);
+    }
+
     for (idx, item) in deque.iter_mut().enumerate() {
         assert_eq!(*item, buf[idx]);
     }
@@ -380,6 +384,10 @@ fn queue_iter() {
         assert_eq!(*item, buf[idx]);
     }
 
+    for (idx, item) in deque.iter().rev().enumerate() {
+        assert_eq!(*item, buf[7 - idx]);
+    }
+
     for (idx, item) in deque.iter_mut().enumerate() {
         assert_eq!(*item, buf[idx]);
     }
@@ -396,7 +404,7 @@ fn queue_iter() {
         item.data -= TEST_BUF_UPDATE_VALUE;
     }
 
-    /* partial item capacity with overdraw */
+    /* full item capacity with overdraw */
     for item in &buf[8..] {
         deque.push(*item);
     }
@@ -409,6 +417,10 @@ fn queue_iter() {
 
     for (idx, item) in deque.iter().enumerate() {
         assert_eq!(*item, buf[idx]);
+    }
+
+    for (idx, item) in deque.iter().rev().enumerate() {
+        assert_eq!(*item, buf[buf.len() - 1 - idx]);
     }
 
     for (idx, item) in deque.iter_mut().enumerate() {
