@@ -1,6 +1,4 @@
 use crate::extbytebuf::{ ExtByteBuf, VolatileByteBuf };
-// use crate::collection::asynque::{ Asynque, Poll };
-// use crate::collection::byteblock::{ ByteBlock };
 use crate::io::{ Poll, Error as IOErr, SendByteChan };
 
 
@@ -24,9 +22,9 @@ pub struct Uart16550<'a> {
 }
 
 impl<'a> Uart16550<'a> {
-    pub fn new(regbuf: ExtByteBuf<'a>) -> Self {
+    pub fn new(regbuf: (usize, usize)) -> Self {
         Self {
-            regbuf: regbuf,
+            regbuf: ExtByteBuf::new(regbuf.0, regbuf.1),
         }
     }
 }

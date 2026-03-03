@@ -2,7 +2,7 @@
 .global reset_trap
 
 reset_trap:
-    li sp, 0x80080000
+    li sp, 0x80200000
     call main
 
 sleep:

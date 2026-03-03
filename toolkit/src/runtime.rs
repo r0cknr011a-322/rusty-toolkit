@@ -76,17 +76,10 @@ RuntimeInner<T, NR, L> {
 
         cnt
     }
-}
 
-impl<T, const NR: usize, const L: usize>
-RuntimeInner<T, NR, L>
-where T: Timer {
-    pub fn time(&self) -> Duration {
-        self.timer.borrow_mut().time()
-    }
-
-    pub fn chan(&self, idx: usize) -> Option<impl Runtime> {
-        let Some(_) = self.logbuf.borrow().get(idx) else {
+    pub fn chan(&self, idx: usize) -> Option<RuntimeRef<T, NR, L>> {
+        let borrow = self.logbuf.borrow();
+        let Some(_) = borrow.get(idx) else {
             return None;
         };
         Some(RuntimeRef::new(idx, self))
@@ -98,6 +91,14 @@ where T: Timer {
             return None;
         };
         Some(buf.len())
+    }
+}
+
+impl<T, const NR: usize, const L: usize>
+RuntimeInner<T, NR, L>
+where T: Timer {
+    pub fn time(&self) -> Duration {
+        self.timer.borrow_mut().time()
     }
 }
 
