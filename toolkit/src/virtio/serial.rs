@@ -111,7 +111,7 @@ where RT: Runtime {
         }
     }
 
-    fn init(&mut self) -> Result<(), Error> {
+    pub fn init(&mut self) -> Result<(), Error> {
         let magic = self.regbuf.rd32_volatile(MAGIC);
         let version = self.regbuf.rd32_volatile(VERSION);
         let id = self.regbuf.rd32_volatile(ID);

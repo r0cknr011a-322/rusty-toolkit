@@ -31,17 +31,22 @@ RuntimeInner<T, NR, L> {
         }
     }
 
-    pub fn wr_log(&self, idx: usize, data: &[u8]) {
+    pub fn wr_log(&self, idx: usize, data: &[u8]) -> usize {
         let mut borrow = self.logbuf.borrow_mut();
-        let logbuf = &mut borrow[idx];
+        let Some(logbuf) = borrow.get_mut(idx) else {
+            return 0;
+        };
 
+        let mut buf = data;
         if data.len() > logbuf.free() {
-            panic!("logger buffer (channel: {idx}) overflow");
+            buf = buf.split_at(logbuf.free()).0;
         }
 
-        for b in data {
+        for b in buf {
             logbuf.push(*b);
         }
+
+        buf.len()
     }
 
     pub fn rd_log(&self, idx: usize, data: &mut [u8]) -> usize {
