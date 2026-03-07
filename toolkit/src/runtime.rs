@@ -17,6 +17,7 @@ pub trait Runtime: Timer + fmt::Write {
 
 }
 
+
 pub struct RuntimeInner<T, const NR: usize, const L: usize> {
     timer: RefCell<T>,
     logbuf: RefCell<[Deque<u8, L>; NR]>,
@@ -51,7 +52,9 @@ RuntimeInner<T, NR, L> {
 
     pub fn rd_log(&self, idx: usize, data: &mut [u8]) -> usize {
         let mut borrow = self.logbuf.borrow_mut();
-        let logbuf = &mut borrow[idx];
+        let Some(logbuf) = borrow.get_mut(idx) else {
+            return 0;
+        };
 
         let len = logbuf.len();
         let (bufl, bufr) = logbuf.as_slices();
@@ -90,12 +93,28 @@ RuntimeInner<T, NR, L> {
         Some(RuntimeRef::new(idx, self))
     }
 
-    fn chan_len(&self, idx: usize) -> Option<usize> {
+    pub fn chan_capacity(&self, idx: usize) -> Option<usize> {
+        let borrow = self.logbuf.borrow();
+        let Some(buf) = borrow.get(idx) else {
+            return None;
+        };
+        Some(buf.capacity())
+    }
+
+    pub fn chan_len(&self, idx: usize) -> Option<usize> {
         let borrow = self.logbuf.borrow();
         let Some(buf) = borrow.get(idx) else {
             return None;
         };
         Some(buf.len())
+    }
+
+    pub fn chan_free(&self, idx: usize) -> Option<usize> {
+        let borrow = self.logbuf.borrow();
+        let Some(buf) = borrow.get(idx) else {
+            return None;
+        };
+        Some(buf.free())
     }
 }
 

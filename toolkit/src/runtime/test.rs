@@ -41,7 +41,7 @@ where R: Runtime {
 }
 
 
-const CHAN_NR: usize = 4;
+const CHAN_NR: usize = 5;
 const BUF_LEN: usize = 0x1000;
 
 #[test]
@@ -64,16 +64,24 @@ fn log() {
         panic!("logger channel doesn't exist");
     };
 
-    let log4 = rt.chan(4);
-    assert!(log4.is_none());
+    let Some(log4) = rt.chan(4) else {
+        panic!("logger channel doesn't exist");
+    };
+
+    let log5 = rt.chan(5);
+    assert!(log5.is_none());
+    let log6 = rt.chan(6);
+    assert!(log6.is_none());
 
     let mut item0 = TestItem::new(log0);
     let mut item1 = TestItem::new(log1);
     let mut item2 = TestItem::new(log2);
     let mut item3 = TestItem::new(log3);
+    let mut item4 = TestItem::new(log4);
 
     let mut databuf: [u8; 256] = array::from_fn(|_| 0);
-    let mut read = 0;
+    let mut head = 0;
+    let mut tail = 0;
 
     /* log 2 times */
     for _ in 0..2 {
@@ -81,13 +89,20 @@ fn log() {
     }
     assert_eq!(rt.chan_len(0), Some(MSG.len() * 2));
 
+    let refbuf: [u8; MSG.len() * 2] = array::from_fn(|i| MSG.as_bytes()[i % MSG.len()]);
+    head = 0;
+    tail = 0;
     for _ in 0..3 {
-        read = rt.rd_log(0, &mut databuf);
-        assert_eq!(read, databuf.len());
+        tail += rt.rd_log(0, &mut databuf);
+        assert_eq!(tail - head, databuf.len());
+        assert_eq!(&databuf, &refbuf[head..tail]);
+        head = tail;
     }
 
-    read = rt.rd_log(0, &mut databuf);
-    assert_eq!(read, MSG.len() * 2 % databuf.len());
+    tail += rt.rd_log(0, &mut databuf);
+    assert_eq!(rt.chan_len(0), Some(0));
+    assert_eq!(tail, MSG.len() * 2);
+    assert_eq!(&databuf[..tail - head], &refbuf[head..tail]);
 
     /* log 4 times */
     for _ in 0..4 {
@@ -95,13 +110,20 @@ fn log() {
     }
     assert_eq!(rt.chan_len(1), Some(MSG.len() * 4));
 
+    let refbuf: [u8; MSG.len() * 4] = array::from_fn(|i| MSG.as_bytes()[i % MSG.len()]);
+    head = 0;
+    tail = 0;
     for _ in 0..6 {
-        read = rt.rd_log(1, &mut databuf);
-        assert_eq!(read, databuf.len());
+        tail += rt.rd_log(1, &mut databuf);
+        assert_eq!(tail - head, databuf.len());
+        assert_eq!(&databuf, &refbuf[head..tail]);
+        head = tail;
     }
 
-    read = rt.rd_log(1, &mut databuf);
-    assert_eq!(read, MSG.len() * 4 % databuf.len());
+    tail += rt.rd_log(1, &mut databuf);
+    assert_eq!(rt.chan_len(1), Some(0));
+    assert_eq!(tail, MSG.len() * 4);
+    assert_eq!(&databuf[..tail - head], &refbuf[head..tail]);
 
     /* log 6 times */
     for _ in 0..6 {
@@ -109,13 +131,21 @@ fn log() {
     }
     assert_eq!(rt.chan_len(2), Some(MSG.len() * 6));
 
+    let refbuf: [u8; MSG.len() * 6] = array::from_fn(|i| MSG.as_bytes()[i % MSG.len()]);
+    head = 0;
+    tail = 0;
     for _ in 0..10 {
-        read = rt.rd_log(2, &mut databuf);
-        assert_eq!(read, databuf.len());
+        tail += rt.rd_log(2, &mut databuf);
+        assert_eq!(tail - head, databuf.len());
+        assert_eq!(&databuf, &refbuf[head..tail]);
+        head = tail;
     }
 
-    read = rt.rd_log(2, &mut databuf);
-    assert_eq!(read, MSG.len() * 6 % databuf.len());
+    tail += rt.rd_log(2, &mut databuf);
+    assert_eq!(rt.chan_len(2), Some(0));
+    assert_eq!(tail, MSG.len() * 6);
+    assert_eq!(&databuf[..tail - head], &refbuf[head..tail]);
+
 
     /* log 8 times */
     for _ in 0..8 {
@@ -123,11 +153,37 @@ fn log() {
     }
     assert_eq!(rt.chan_len(3), Some(MSG.len() * 8));
 
+    let refbuf: [u8; MSG.len() * 8] = array::from_fn(|i| MSG.as_bytes()[i % MSG.len()]);
+    head = 0;
+    tail = 0;
     for _ in 0..13 {
-        read = rt.rd_log(3, &mut databuf);
-        assert_eq!(read, databuf.len());
+        tail += rt.rd_log(3, &mut databuf);
+        assert_eq!(tail - head, databuf.len());
+        assert_eq!(&databuf, &refbuf[head..tail]);
+        head = tail;
     }
 
-    read = rt.rd_log(3, &mut databuf);
-    assert_eq!(read, MSG.len() * 8 % databuf.len());
+    tail += rt.rd_log(3, &mut databuf);
+    assert_eq!(rt.chan_len(3), Some(0));
+    assert_eq!(tail, MSG.len() * 8);
+    assert_eq!(&databuf[..tail - head], &refbuf[head..tail]);
+
+    /* log 10 times */
+    for _ in 0..10 {
+        item4.log();
+    }
+    assert_eq!(rt.chan_len(4), rt.chan_capacity(4));
+
+    let refbuf: [u8; MSG.len() * 10] = array::from_fn(|i| MSG.as_bytes()[i % MSG.len()]);
+    head = 0;
+    tail = 0;
+    for _ in 0..16 {
+        tail += rt.rd_log(4, &mut databuf);
+        assert_eq!(tail - head, databuf.len());
+        assert_eq!(&databuf, &refbuf[head..tail]);
+        head = tail;
+    }
+
+    tail += rt.rd_log(4, &mut databuf);
+    assert_eq!(rt.chan_len(4), Some(0));
 }
