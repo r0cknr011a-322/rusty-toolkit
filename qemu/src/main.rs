@@ -37,7 +37,7 @@ impl<'a> LoggerTask<'a> {
         }
     }
 
-    fn run(&mut self) {
+    fn send(&mut self) {
         let mut buf: [u8; LOG_BUF_LEN] = array::from_fn(|_| 0);
         for idx in 0..LOG_BUF_NR {
             let rd = self.runtime.rd_log(idx, &mut buf);
@@ -63,7 +63,7 @@ impl<'a> LoggerTask<'a> {
     }
 }
 
-const EXT_MEM: usize = 0x80200000;
+const EXT_MEM: usize = 0x8020_0000;
 
 struct SerialTask<'a, RT> {
     runtime: RT,
@@ -110,22 +110,23 @@ pub extern "C" fn main() {
     let Some(mut main_logchan) = runtime.chan(0) else {
         panic!("runtime get channel 0 failed");
     };
-    let Some(mut serial_logchan0) = runtime.chan(3) else {
+    let Some(serial_logchan0) = runtime.chan(3) else {
         panic!("runtime get channel 3 failed");
     };
-    let Some(mut serial_logchan1) = runtime.chan(3) else {
+    let Some(serial_logchan1) = runtime.chan(3) else {
         panic!("runtime get channel 3 failed");
     };
 
     writeln!(main_logchan, "hello world!!!");
 
     let mut logger = LoggerTask::new(&runtime);
-    logger.run();
+    logger.send();
 
     let mut serial = SerialTask::new(serial_logchan0, serial_logchan1);
     serial.init();
 
-    logger.run();
+    writeln!(main_logchan, "exiting...");
+    logger.send();
 }
 
 #[panic_handler]

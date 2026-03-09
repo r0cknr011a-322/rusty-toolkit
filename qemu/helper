@@ -2,24 +2,31 @@
 import sys
 import argparse
 import subprocess
+import shutil
 
 parser = argparse.ArgumentParser()
-subparser = parser.add_subparsers()
-
-buildp = subparser.add_parser('build')
-buildp.add_argument('target', choices=[ 'riscv64', 'bullshit' ])
-
-simp = subparser.add_parser('sim')
-simp.add_argument('machine', choices=[ 'virt' ])
+parser.add_argument('-d', '--debug', action='store_true')
 
 args = parser.parse_args()
 
-sim = [
-    'qemu-system-riscv64',
-    '-nographic',
-    '-M', 'virt',
-    '-bios', 'target/main.elf',
-    '-icount', 'shift=10',
+bin_src_path = 'target/riscv64gc-unknown-none-elf/release/hv-rv64-virt'
+if args.debug:
+    bin_src_path = 'target/riscv64gc-unknown-none-elf/debug/hv-rv64-virt'
+
+bin_dst_path = 'target/hv-rv64-virt'
+shutil.copy2(bin_src_path, bin_dst_path)
+
+cmd = [
+    'qemu-system-riscv64', '-nographic', '-M', 'virt', '-icount', 'shift=10',
+    '-bios', bin_dst_path,
+    '-device', 'virtio-serial-device',
+    '-device', 'virtserialport,id=serial7',
+    '-chardev', 'file,id=serial7,path=somedata.bin',
 ]
 
-# subprocess.run(sim)
+if args.debug:
+    cmd.extend(['-s', '-S'])
+
+
+print("starting sim: ", cmd)
+subprocess.run(cmd)

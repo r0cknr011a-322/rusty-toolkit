@@ -1,15 +1,16 @@
 ENTRY(reset_trap)
 
 MEMORY {
-    ram (rw) : ORIGIN = 0x80000000, LENGTH = 1M
+    code (rw)   : ORIGIN = 0x80000000, LENGTH = 1M
+    stack (rw)  : ORIGIN = 0x80200000, LENGTH = 1M
 }
 
 SECTIONS {
     .text : {
         *(.text*)
-    } > ram
+    } > code
 
     .rodata : {
         *(.rodata*)
-    } > ram
+    } > code
 }
