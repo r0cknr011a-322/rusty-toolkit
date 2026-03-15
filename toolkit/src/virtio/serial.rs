@@ -88,7 +88,7 @@ struct BufCmd {
 
 pub struct SerialDevice<'a, RT> {
     rt: RT,
-    regbuf: ExtByteBuf<'a>,
+    io: ExtByteBuf<'a>,
     rdbuf: ExtByteBuf<'a>,
     wrbuf: ExtByteBuf<'a>,
     rdque: VirtQueue<'a>,
@@ -99,13 +99,13 @@ pub struct SerialDevice<'a, RT> {
 impl<'a, RT> SerialDevice<'a, RT>
 where RT: Runtime {
     pub fn new(
-        rt: RT, regbuf: (usize, usize),
+        rt: RT, io: (usize, usize),
         rdbuf: (usize, usize), wrbuf: (usize, usize),
         rdque: VirtQueue<'a>, wrque: VirtQueue<'a>
     ) -> Self {
         Self {
             rt: rt,
-            regbuf: ExtByteBuf::new(regbuf.0, regbuf.1),
+            io: ExtByteBuf::new(io.0, io.1),
             rdbuf: ExtByteBuf::new(rdbuf.0, rdbuf.1), wrbuf: ExtByteBuf::new(wrbuf.0, wrbuf.1),
             rdque: rdque, wrque: wrque,
             portnr: 2,
@@ -114,16 +114,16 @@ where RT: Runtime {
 
     pub fn emerg_wr(&mut self, data: &[u8]) {
         for item in data {
-            self.regbuf.wr8_volatile(CFG_EMERG_WR, *item);
+            self.io.wr8_volatile(CFG_EMERG_WR, *item);
         }
     }
 
-    fn features(&mut self) {
-        self.regbuf.wr32_volatile(DEV_FEAT_SEL, 0);
-        let dev_features = self.regbuf.rd32_volatile(DEV_FEAT_VAL);
+    fn set_features(&mut self) -> Result <(), Error> {
+        self.io.wr32_volatile(DEV_FEAT_SEL, 0);
+        let dev_features = self.io.rd32_volatile(DEV_FEAT_VAL);
 
-        self.regbuf.wr32_volatile(DEV_FEAT_SEL, 1);
-        let cmn_features = self.regbuf.rd32_volatile(DEV_FEAT_VAL);
+        self.io.wr32_volatile(DEV_FEAT_SEL, 1);
+        let cmn_features = self.io.rd32_volatile(DEV_FEAT_VAL);
 
         writeln!(
             self.rt, "features0: {:#X}, features1: {:#X}",
@@ -131,31 +131,31 @@ where RT: Runtime {
         );
 
         if dev_features & FEAT_EMERG_WR != 0 {
-            self.regbuf.wr32_volatile(DRV_FEAT_SEL, 0);
-            self.regbuf.wr32_volatile(DRV_FEAT_VAL, FEAT_EMERG_WR);
+            self.io.wr32_volatile(DRV_FEAT_SEL, 0);
+            self.io.wr32_volatile(DRV_FEAT_VAL, FEAT_EMERG_WR);
         }
 
         if dev_features & FEAT_MULTIPORT != 0 {
-            self.portnr = self.regbuf.rd32_volatile(CFG_PORT_NR) + 1;
+            self.portnr = self.io.rd32_volatile(CFG_PORT_NR) + 1;
         }
 
         writeln!(self.rt, "port number: {}", self.portnr);
-
+        Ok(())
     }
 
     fn rd_queue_init(&mut self) Result<(), Error> {
         /*
         addr = self.rdque.cmdbuf.addr() as u64;
-        self.regbuf.wr32_volatile(CMD_QUEUE_ADDR_LO, (addr & 0xFFFF_FFFF) as u32);
-        self.regbuf.wr32_volatile(CMD_QUEUE_ADDR_HI, (addr >> 32) as u32);
+        self.io.wr32_volatile(CMD_QUEUE_ADDR_LO, (addr & 0xFFFF_FFFF) as u32);
+        self.io.wr32_volatile(CMD_QUEUE_ADDR_HI, (addr >> 32) as u32);
 
         addr = self.rdque.drvbuf.addr() as u64;
-        self.regbuf.wr32_volatile(DRV_QUEUE_ADDR_LO, (addr & 0xFFFF_FFFF) as u32);
-        self.regbuf.wr32_volatile(DRV_QUEUE_ADDR_HI, (addr >> 32) as u32);
+        self.io.wr32_volatile(DRV_QUEUE_ADDR_LO, (addr & 0xFFFF_FFFF) as u32);
+        self.io.wr32_volatile(DRV_QUEUE_ADDR_HI, (addr >> 32) as u32);
 
         addr = self.rdque.devbuf.addr() as u64;
-        self.regbuf.wr32_volatile(DEV_QUEUE_ADDR_LO, (addr & 0xFFFF_FFFF) as u32);
-        self.regbuf.wr32_volatile(DEV_QUEUE_ADDR_HI, (addr >> 32) as u32);
+        self.io.wr32_volatile(DEV_QUEUE_ADDR_LO, (addr & 0xFFFF_FFFF) as u32);
+        self.io.wr32_volatile(DEV_QUEUE_ADDR_HI, (addr >> 32) as u32);
         */
 
     
@@ -166,32 +166,32 @@ where RT: Runtime {
         let mut max_len = 0;
         let mut start = 0;
 
-        self.regbuf.wr32_volatile(QUEUE_IDX, 1);
-        max_len = self.regbuf.rd32_volatile(QUEUE_LEN_MAX);
+        self.io.wr32_volatile(QUEUE_IDX, 1);
+        max_len = self.io.rd32_volatile(QUEUE_LEN_MAX);
         writeln!(self.rt, "write queue max len: {}", max_len);
 
         /*
         addr = self.wrque.cmdbuf.addr() as u64;
-        self.regbuf.wr32_volatile(CMD_QUEUE_ADDR_LO, (addr & 0xFFFF_FFFF) as u32);
-        self.regbuf.wr32_volatile(CMD_QUEUE_ADDR_HI, (addr >> 32) as u32);
+        self.io.wr32_volatile(CMD_QUEUE_ADDR_LO, (addr & 0xFFFF_FFFF) as u32);
+        self.io.wr32_volatile(CMD_QUEUE_ADDR_HI, (addr >> 32) as u32);
 
         addr = self.rdque.drvbuf.addr() as u64;
-        self.regbuf.wr32_volatile(DRV_QUEUE_ADDR_LO, (addr & 0xFFFF_FFFF) as u32);
-        self.regbuf.wr32_volatile(DRV_QUEUE_ADDR_HI, (addr >> 32) as u32);
+        self.io.wr32_volatile(DRV_QUEUE_ADDR_LO, (addr & 0xFFFF_FFFF) as u32);
+        self.io.wr32_volatile(DRV_QUEUE_ADDR_HI, (addr >> 32) as u32);
 
         addr = self.rdque.devbuf.addr() as u64;
-        self.regbuf.wr32_volatile(DEV_QUEUE_ADDR_LO, (addr & 0xFFFF_FFFF) as u32);
-        self.regbuf.wr32_volatile(DEV_QUEUE_ADDR_HI, (addr >> 32) as u32);
+        self.io.wr32_volatile(DEV_QUEUE_ADDR_LO, (addr & 0xFFFF_FFFF) as u32);
+        self.io.wr32_volatile(DEV_QUEUE_ADDR_HI, (addr >> 32) as u32);
         */
 
         Ok(())
     }
 
-    pub fn init(&mut self) -> Result<(), Error> {
-        let magic = self.regbuf.rd32_volatile(MAGIC);
-        let version = self.regbuf.rd32_volatile(VERSION);
-        let id = self.regbuf.rd32_volatile(ID);
-
+    fn get_version(&mut self) -> Result<(), Error> {
+        let io = &mut self.io;
+        let magic = io.rd32_volatile(MAGIC);
+        let version = io.rd32_volatile(VERSION);
+        let id = io.rd32_volatile(ID);
         writeln!(self.rt, "magic: {:#X}; version: {}; id: {}", magic, version, id);
 
         if magic != MAGIC_VAL {
@@ -206,37 +206,48 @@ where RT: Runtime {
             return Err(Error::Fatal);
         }
 
+        Ok(())
+    }
+
+    pub fn init(&mut self) -> Result<(), Error> {
+        if let Err(err) = self.get_version() {
+            return err;
+        }
+
+        let io = &mut self.io;
         let mut status = 0;
-        self.regbuf.wr32_volatile(STATUS, status);
+        io.wr32_volatile(STATUS, status);
 
         status |= STATUS_ACK | STATUS_DRV;
-        self.regbuf.wr32_volatile(STATUS, status);
+        io.wr32_volatile(STATUS, status);
 
-        self.features();
+        if let Err(err) = self.set_features() {
+            return err;
+        }
         // status |= STATUS_FEAT_OK;
-        // self.regbuf.wr32_volatile(STATUS, status);
+        // self.io.wr32_volatile(STATUS, status);
 
-        // let status_new = self.regbuf.rd32_volatile(STATUS);
+        // let status_new = self.io.rd32_volatile(STATUS);
         // if status_new != status {
         //     return Err(Error::Fatal);
         // }
 
-        self.regbuf.wr32_volatile(QUEUE_IDX, 0);
-        start = self.regbuf.rd32_volatile(QUEUE_FIRST_PAGE);
+        io.wr32_volatile(QUEUE_IDX, 0);
+        start = io.rd32_volatile(QUEUE_FIRST_PAGE);
         if start != 0 {
             return Err(Error::Fatal);
         }
-        max_len = self.regbuf.rd32_volatile(QUEUE_LEN_MAX);
+        max_len = io.rd32_volatile(QUEUE_LEN_MAX);
         if max_len == 0 {
             return Err(Error::Fatal);
         }
 
         writeln!(self.rt, "read queue max len: {}", max_len);
 
-        self.regbuf.wr32_volatile(PAGE_LEN, 256);
+        io.wr32_volatile(PAGE_LEN, 256);
 
         status |= STATUS_DRV_OK;
-        self.regbuf.wr32_volatile(STATUS, status);
+        io.wr32_volatile(STATUS, status);
         Ok(())
     }
 
