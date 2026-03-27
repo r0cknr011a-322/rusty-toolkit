@@ -17,6 +17,7 @@ pub trait Runtime: Timer + fmt::Write {
 
 }
 
+
 pub struct RuntimeInner<T, const NR: usize, const L: usize> {
     timer: RefCell<T>,
     logbuf: RefCell<[Deque<u8, L>; NR]>,
@@ -31,22 +32,29 @@ RuntimeInner<T, NR, L> {
         }
     }
 
-    pub fn wr_log(&self, idx: usize, data: &[u8]) {
+    pub fn wr_log(&self, idx: usize, data: &[u8]) -> usize {
         let mut borrow = self.logbuf.borrow_mut();
-        let logbuf = &mut borrow[idx];
+        let Some(logbuf) = borrow.get_mut(idx) else {
+            return 0;
+        };
 
+        let mut buf = data;
         if data.len() > logbuf.free() {
-            panic!("logger buffer (channel: {idx}) overflow");
+            buf = buf.split_at(logbuf.free()).0;
         }
 
-        for b in data {
+        for b in buf {
             logbuf.push(*b);
         }
+
+        buf.len()
     }
 
     pub fn rd_log(&self, idx: usize, data: &mut [u8]) -> usize {
         let mut borrow = self.logbuf.borrow_mut();
-        let logbuf = &mut borrow[idx];
+        let Some(logbuf) = borrow.get_mut(idx) else {
+            return 0;
+        };
 
         let len = logbuf.len();
         let (bufl, bufr) = logbuf.as_slices();
@@ -76,6 +84,38 @@ RuntimeInner<T, NR, L> {
 
         cnt
     }
+
+    pub fn chan(&self, idx: usize) -> Option<RuntimeRef<T, NR, L>> {
+        let borrow = self.logbuf.borrow();
+        let Some(_) = borrow.get(idx) else {
+            return None;
+        };
+        Some(RuntimeRef::new(idx, self))
+    }
+
+    pub fn chan_capacity(&self, idx: usize) -> Option<usize> {
+        let borrow = self.logbuf.borrow();
+        let Some(buf) = borrow.get(idx) else {
+            return None;
+        };
+        Some(buf.capacity())
+    }
+
+    pub fn chan_len(&self, idx: usize) -> Option<usize> {
+        let borrow = self.logbuf.borrow();
+        let Some(buf) = borrow.get(idx) else {
+            return None;
+        };
+        Some(buf.len())
+    }
+
+    pub fn chan_free(&self, idx: usize) -> Option<usize> {
+        let borrow = self.logbuf.borrow();
+        let Some(buf) = borrow.get(idx) else {
+            return None;
+        };
+        Some(buf.free())
+    }
 }
 
 impl<T, const NR: usize, const L: usize>
@@ -83,21 +123,6 @@ RuntimeInner<T, NR, L>
 where T: Timer {
     pub fn time(&self) -> Duration {
         self.timer.borrow_mut().time()
-    }
-
-    pub fn chan(&self, idx: usize) -> Option<impl Runtime> {
-        let Some(_) = self.logbuf.borrow().get(idx) else {
-            return None;
-        };
-        Some(RuntimeRef::new(idx, self))
-    }
-
-    fn chan_len(&self, idx: usize) -> Option<usize> {
-        let borrow = self.logbuf.borrow();
-        let Some(buf) = borrow.get(idx) else {
-            return None;
-        };
-        Some(buf.len())
     }
 }
 
