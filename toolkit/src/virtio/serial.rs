@@ -143,7 +143,7 @@ where RT: Runtime {
         Ok(())
     }
 
-    fn rd_queue_init(&mut self) Result<(), Error> {
+    fn rd_queue_init(&mut self) -> Result<(), Error> {
         /*
         addr = self.rdque.cmdbuf.addr() as u64;
         self.io.wr32_volatile(CMD_QUEUE_ADDR_LO, (addr & 0xFFFF_FFFF) as u32);
@@ -158,7 +158,7 @@ where RT: Runtime {
         self.io.wr32_volatile(DEV_QUEUE_ADDR_HI, (addr >> 32) as u32);
         */
 
-    
+        Err(Error::Fatal)
     }
 
     fn wr_queue_init(&mut self) -> Result<(), Error> {
@@ -167,8 +167,6 @@ where RT: Runtime {
         let mut start = 0;
 
         self.io.wr32_volatile(QUEUE_IDX, 1);
-        max_len = self.io.rd32_volatile(QUEUE_LEN_MAX);
-        writeln!(self.rt, "write queue max len: {}", max_len);
 
         /*
         addr = self.wrque.cmdbuf.addr() as u64;
@@ -184,7 +182,7 @@ where RT: Runtime {
         self.io.wr32_volatile(DEV_QUEUE_ADDR_HI, (addr >> 32) as u32);
         */
 
-        Ok(())
+        Err(Error::Fatal)
     }
 
     fn get_version(&mut self) -> Result<(), Error> {
@@ -211,19 +209,20 @@ where RT: Runtime {
 
     pub fn init(&mut self) -> Result<(), Error> {
         if let Err(err) = self.get_version() {
-            return err;
+            return Err(err);
+        }
+
+        let mut status = 0;
+        self.io.wr32_volatile(STATUS, status);
+
+        status |= STATUS_ACK | STATUS_DRV;
+        self.io.wr32_volatile(STATUS, status);
+
+        if let Err(err) = self.set_features() {
+            return Err(err);
         }
 
         let io = &mut self.io;
-        let mut status = 0;
-        io.wr32_volatile(STATUS, status);
-
-        status |= STATUS_ACK | STATUS_DRV;
-        io.wr32_volatile(STATUS, status);
-
-        if let Err(err) = self.set_features() {
-            return err;
-        }
         // status |= STATUS_FEAT_OK;
         // self.io.wr32_volatile(STATUS, status);
 
@@ -232,17 +231,23 @@ where RT: Runtime {
         //     return Err(Error::Fatal);
         // }
 
+        /*
         io.wr32_volatile(QUEUE_IDX, 0);
+
         start = io.rd32_volatile(QUEUE_FIRST_PAGE);
         if start != 0 {
             return Err(Error::Fatal);
         }
+
         max_len = io.rd32_volatile(QUEUE_LEN_MAX);
         if max_len == 0 {
             return Err(Error::Fatal);
         }
 
+        max_len = self.io.rd32_volatile(QUEUE_LEN_MAX);
+        writeln!(self.rt, "write queue max len: {}", max_len);
         writeln!(self.rt, "read queue max len: {}", max_len);
+        */
 
         io.wr32_volatile(PAGE_LEN, 256);
 
